@@ -1,0 +1,41 @@
+guidefiles/
+
+# Virtual environments
+myvenv/
+venv/
+env/
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+static/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Node (for frontend later)
+node_modules/
+dist/
+.next/
+
