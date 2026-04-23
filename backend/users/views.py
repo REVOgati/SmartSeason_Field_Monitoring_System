@@ -1,12 +1,18 @@
 from rest_framework.views import APIView
-from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.generics import RetrieveUpdateAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import UserRegistrationSerializer, UserProfileSerializer, CustomTokenObtainPairSerializer
-from .permissions import IsVerified
+from .models import User
+from .serializers import (
+    UserRegistrationSerializer,
+    UserProfileSerializer,
+    CustomTokenObtainPairSerializer,
+    AgentPoolSerializer,
+)
+from .permissions import IsVerified, IsCoordinator
 
 
 class RegisterView(APIView):
@@ -116,3 +122,154 @@ class LoginView(TokenObtainPairView):
     """
     serializer_class   = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+
+
+class AgentPoolView(ListAPIView):
+    """
+    GET /api/agents/pool/
+
+    Returns all verified, active field agents who are not yet assigned to any
+    coordinator — i.e. their coordinator FK is NULL.
+
+    These agents have completed registration and been approved by a superuser
+    but are waiting to be picked up by a coordinator.
+
+    Why ListAPIView here?
+    ListAPIView is a GenericView that gives us a GET endpoint for free:
+    it calls get_queryset(), paginates the result, and serializes it.
+    No post(), put(), or delete() — coordinators browse, then call /assign/.
+
+    Only coordinators can see this list. Field agents don't recruit each other.
+    """
+    serializer_class   = AgentPoolSerializer
+    permission_classes = [IsAuthenticated, IsCoordinator]
+
+    def get_queryset(self):
+        """
+        User.field_agents is the FieldAgentManager — already filters for
+        is_verified=True and is_active=True. We add coordinator__isnull=True
+        to get only pool agents (not yet assigned to anyone).
+        """
+        return User.field_agents.filter(coordinator__isnull=True)
+
+
+class MyTeamView(ListAPIView):
+    """
+    GET /api/agents/my-team/
+
+    Returns all verified, active field agents currently assigned to the
+    requesting coordinator (their coordinator FK points to request.user).
+
+    This is the coordinator's live roster — one place to see who is on their
+    team and look up PKs for the /drop/ endpoint.
+    """
+    serializer_class   = AgentPoolSerializer
+    permission_classes = [IsAuthenticated, IsCoordinator]
+
+    def get_queryset(self):
+        """
+        FieldAgentManager.for_coordinator() is defined on the model manager
+        and filters: role=field_agent, is_verified=True, is_active=True,
+        coordinator=<given user>. One line, no repeated filter logic.
+        """
+        return User.field_agents.for_coordinator(self.request.user)
+
+
+class AssignAgentView(APIView):
+    """
+    POST /api/agents/{pk}/assign/
+
+    Pulls a single agent from the unassigned pool into this coordinator's team.
+    No request body needed — the target agent is identified by the URL pk.
+
+    Validation rules enforced here:
+    - The pk must belong to a verified, active field agent (via FieldAgentManager)
+    - The agent must currently be unassigned (coordinator__isnull=True)
+      → if both conditions aren't met, 404 is returned
+      → we use 404 (not 403) to avoid confirming that the agent exists but
+        belongs to someone else — that would leak information
+
+    On success: sets agent.coordinator = request.user and saves.
+    """
+    permission_classes = [IsAuthenticated, IsCoordinator]
+
+    def post(self, request, pk):
+        try:
+            agent = User.field_agents.get(pk=pk, coordinator__isnull=True)
+            # field_agents manager already restricts to verified+active field agents.
+            # coordinator__isnull=True ensures the agent is in the pool (not taken).
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'Agent not found in pool. They may not exist, may not be verified, or may already be assigned to a coordinator.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        agent.coordinator = request.user
+        agent.save(update_fields=['coordinator'])
+        # update_fields=['coordinator'] issues a targeted UPDATE statement:
+        #   UPDATE users_user SET coordinator_id=X WHERE id=Y
+        # This is more efficient than a full .save() which updates every column,
+        # and avoids accidentally overwriting fields changed by a concurrent request.
+
+        return Response(
+            {'message': f'{agent.full_name} has been added to your team.'},
+            status=status.HTTP_200_OK
+        )
+
+
+class DropAgentView(APIView):
+    """
+    POST /api/agents/{pk}/drop/
+
+    Releases a field agent from this coordinator's team back to the unassigned pool.
+    Also clears all field assignments for that agent so fields are not left in
+    a state where assigned_agent points to someone no longer on the team.
+
+    Why POST instead of DELETE?
+    REST DELETE conventionally deletes a resource. Here we are not deleting
+    the agent account — we are performing a state transition (assigned → pool).
+    POST on a custom action URL is the standard DRF pattern for operations that
+    don't map cleanly to CRUD.
+
+    Business rule on field clearing:
+    When an agent is dropped, Field.assigned_agent is set to NULL for every
+    field they were assigned to. This preserves the field record and all its
+    historical monitoring data — only the assignment link is cleared.
+    The coordinator can reassign a new agent to those fields afterwards.
+    """
+    permission_classes = [IsAuthenticated, IsCoordinator]
+
+    def post(self, request, pk):
+        # Import Field here (inside the method) to avoid a potential circular
+        # import at module level: users.views → fields.models → (fields imports users)
+        from fields.models import Field
+
+        try:
+            agent = User.field_agents.for_coordinator(request.user).get(pk=pk)
+            # for_coordinator(request.user) scopes the query to THIS coordinator's team.
+            # .get(pk=pk) then finds the specific agent.
+            # If the agent belongs to a different coordinator, DoesNotExist is raised
+            # → 404, no information leaked about agents on other teams.
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'Agent not found on your team.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Clear all field assignments for this agent in a single UPDATE query.
+        # .update() runs SQL directly without loading objects into memory —
+        # more efficient than fetching each Field and calling .save() individually.
+        cleared_count = Field.objects.filter(assigned_agent=agent).update(assigned_agent=None)
+
+        agent.coordinator = None
+        agent.save(update_fields=['coordinator'])
+
+        return Response(
+            {
+                'message': f'{agent.full_name} has been released from your team.',
+                'fields_cleared': cleared_count,
+                # Tell the coordinator how many field assignments were wiped
+                # so they know how many fields now need a new agent assigned.
+            },
+            status=status.HTTP_200_OK
+        )

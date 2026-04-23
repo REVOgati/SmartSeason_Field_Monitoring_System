@@ -136,6 +136,37 @@ class UserPublicSerializer(serializers.ModelSerializer):
         # inside other serializers for reading — never for input.
 
 
+class AgentPoolSerializer(serializers.ModelSerializer):
+    """
+    Used for: GET /api/agents/pool/ and GET /api/agents/my-team/
+
+    A READ-ONLY snapshot of a field agent for coordinator-facing list views.
+    Coordinators use this to browse the pool and decide who to assign to their team.
+
+    Fields exposed:
+    - id         → the PK the coordinator passes to POST /api/agents/{id}/assign/
+    - email      → account identity, avoids confusion between people with similar names
+    - full_name  → display name
+    - date_joined → how long they have been registered in the system
+                    (older = more established; useful context for the coordinator)
+
+    coordinator is deliberately NOT exposed here.
+    - Pool agents have coordinator=NULL (meaningless to show)
+    - My-team agents all have coordinator=<requesting user> (already obvious)
+    Both lists are filtered server-side, so there is no ambiguity.
+
+    Why a dedicated serializer instead of reusing UserPublicSerializer?
+    UserPublicSerializer shows 'role' — redundant here because every agent
+    on these endpoints IS a field_agent. We swap role for date_joined, which
+    is more useful context in a team-browsing scenario.
+    """
+
+    class Meta:
+        model  = User
+        fields = ['id', 'email', 'full_name', 'date_joined']
+        read_only_fields = ['id', 'email', 'full_name', 'date_joined']
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """
     Used for: GET /api/auth/me/ and PATCH /api/auth/me/

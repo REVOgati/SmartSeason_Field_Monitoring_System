@@ -34,4 +34,15 @@ urlpatterns = [
     # The Router inside fields/urls.py generates:
     #   /api/fields/         → list + create
     #   /api/fields/{id}/    → retrieve + update + delete
+
+    path('api/agents/', include('users.agent_urls')),
+    # Mounts the agent management endpoints at /api/agents/
+    # Kept separate from /api/auth/ to signal a different concern:
+    #   /api/auth/  → identity (register, login, refresh, me)
+    #   /api/agents/ → team management (pool, my-team, assign, drop)
+    # Results in:
+    #   GET  /api/agents/pool/              → AgentPoolView
+    #   GET  /api/agents/my-team/           → MyTeamView
+    #   POST /api/agents/{pk}/assign/       → AssignAgentView
+    #   POST /api/agents/{pk}/drop/         → DropAgentView
 ]
