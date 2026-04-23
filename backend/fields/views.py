@@ -1,5 +1,6 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Field
 from .serializers import FieldSerializer
@@ -38,6 +39,39 @@ class FieldViewSet(viewsets.ModelViewSet):
     """
     serializer_class   = FieldSerializer
     permission_classes = [IsAuthenticated, IsCoordinator, IsFieldOwner]
+
+    # --- Filtering (DjangoFilterBackend) ---
+    # Enables exact-match filtering via query parameters.
+    # GET /api/fields/?is_active=true
+    # GET /api/fields/?crop_type=Maize
+    # GET /api/fields/?assigned_agent=5
+    # GET /api/fields/?is_active=true&crop_type=Maize  ← multiple filters combine with AND
+    filter_backends   = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    # We set filter_backends explicitly on the ViewSet rather than relying on the
+    # global DEFAULT_FILTER_BACKENDS alone. This makes the intent visible in the
+    # code and allows future ViewSets to opt into/out of specific backends.
+
+    filterset_fields  = ['is_active', 'crop_type', 'assigned_agent']
+    # DjangoFilterBackend uses these for exact-match filters.
+    # assigned_agent accepts a user PK: ?assigned_agent=5
+    # is_active accepts a boolean:      ?is_active=true  or  ?is_active=false
+
+    # --- Free-text search (SearchFilter) ---
+    # GET /api/fields/?search=nakuru
+    # GET /api/fields/?search=french
+    # SearchFilter runs SQL: WHERE name ILIKE '%nakuru%' OR location ILIKE '%nakuru%' etc.
+    search_fields     = ['name', 'location', 'crop_type']
+    # Searches across field name, location string, and crop type simultaneously.
+
+    # --- Client-controlled ordering (OrderingFilter) ---
+    # GET /api/fields/?ordering=name          ← A → Z by name
+    # GET /api/fields/?ordering=-created_at   ← newest first (default)
+    # GET /api/fields/?ordering=size_in_acres ← smallest fields first
+    ordering_fields   = ['name', 'created_at', 'size_in_acres']
+    # Only fields listed here are safe to order by (prevents ordering on hidden fields).
+    ordering          = ['-created_at']
+    # Default ordering when the client sends no ?ordering= parameter.
+    # Matches the Meta.ordering on the model so behaviour is consistent.
 
     def get_queryset(self):
         """

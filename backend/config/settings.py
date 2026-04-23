@@ -39,6 +39,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'django_filters',
+    # django-filter enables structured field filtering on list endpoints.
+    # Example: GET /api/fields/?is_active=true&crop_type=Maize
+    # Registering it here lets Django find its app config and templates.
     'users',
     'fields',
 ]
@@ -152,6 +156,33 @@ REST_FRAMEWORK = {
         # the view explicitly sets permission_classes = [AllowAny].
         # RegisterView already does this — it won't break after this change.
     ],
+
+    # --- Filtering ---
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        # Enables ?field=value filtering on any ViewSet that declares filterset_fields.
+        # Example: GET /api/fields/?is_active=true&crop_type=Maize
+        # DjangoFilterBackend does exact-match (and range/choice) filtering.
+
+        'rest_framework.filters.SearchFilter',
+        # Enables ?search=<term> free-text search across declared search_fields.
+        # Example: GET /api/fields/?search=nakuru
+        # Uses icontains (case-insensitive substring match) by default.
+
+        'rest_framework.filters.OrderingFilter',
+        # Enables ?ordering=<field> and ?ordering=-<field> (descending) sorting.
+        # Example: GET /api/fields/?ordering=-created_at
+        # Only fields listed in ordering_fields on the view are allowed.
+    ],
+
+    # --- Pagination ---
+    'DEFAULT_PAGINATION_CLASS': 'config.pagination.StandardResultsPagination',
+    # Points to our custom pagination class in config/pagination.py.
+    # Applies to every list endpoint that returns a queryset.
+
+    'PAGE_SIZE': 20,
+    # Default number of items per page when the client does not specify ?page_size=.
+    # Our StandardResultsPagination allows the client to override this up to max_page_size=100.
 }
 
 
