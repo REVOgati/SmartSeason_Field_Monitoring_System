@@ -135,3 +135,46 @@ import os
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+# --- Django REST Framework global configuration ---
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Every request now tries to extract a JWT from the Authorization header.
+        # Header format: Authorization: Bearer eyJhbGci...
+        # If a valid token is found, request.user is populated automatically.
+        # If no token or an invalid token is sent, request.user is AnonymousUser.
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+        # Global default: every endpoint requires a logged-in user UNLESS
+        # the view explicitly sets permission_classes = [AllowAny].
+        # RegisterView already does this — it won't break after this change.
+    ],
+}
+
+
+# --- SimpleJWT configuration ---
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME':  timedelta(minutes=60),
+    # Access tokens expire after 60 minutes.
+    # After expiry, the client must use the refresh token to get a new one.
+    # Short lifetime limits damage if a token is stolen — it expires quickly.
+
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    # Refresh tokens last 7 days.
+    # After 7 days the user must log in again with email + password.
+
+    'ROTATE_REFRESH_TOKENS': True,
+    # Every time the client calls /api/auth/refresh/, they get a new refresh token
+    # in addition to a new access token. The old refresh token is invalidated.
+    # This is a security improvement — a stolen refresh token can only be used once.
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    # The prefix expected in the Authorization header.
+    # Authorization: Bearer eyJhbGci...
+    # 'Bearer' is the OAuth2 standard — all modern API clients use this.
+}

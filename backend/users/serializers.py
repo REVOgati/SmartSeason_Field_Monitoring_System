@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from .models import User
 
 
@@ -166,3 +168,88 @@ class UserProfileSerializer(serializers.ModelSerializer):
         # coordinator — set by the superuser in Django Admin, not self-assigned
         # is_verified, is_active — set by superuser only
         # date_joined — historical timestamp, never editable
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Extends SimpleJWT's default login serializer to:
+    1. Embed extra claims in the token payload (role, full_name, is_verified)
+    2. Block login for accounts that have not been verified by a superuser
+
+    Why extend TokenObtainPairSerializer?
+    SimpleJWT's default token contains only: token_type, exp, iat, jti, user_id
+    That's intentionally minimal. We add our own claims on top of those defaults.
+
+    The token's payload after our customisation:
+    {
+        "token_type": "access",
+        "exp": 1714000000,
+        "iat": 1713996400,
+        "jti": "abc123...",
+        "user_id": 3,
+        "role": "coordinator",        ← added
+        "full_name": "Jane Coord",    ← added
+        "email": "jane@example.com"   ← added
+    }
+
+    The React frontend decodes this payload from the access token (JWT is just
+    Base64 — you can decode it without the secret key) and knows immediately:
+    - Which dashboard to render (coordinator vs agent)
+    - What name to show in the navbar
+    - What email to display in the profile section
+    All without making a second API call to /api/auth/me/.
+    """
+
+    @classmethod
+    def get_token(cls, user):
+        """
+        get_token() is a class method called by the parent's validate()
+        to actually mint (create) the token.
+
+        super().get_token(user) creates the base token with the standard
+        SimpleJWT claims. We then add our own custom claims on top.
+
+        These claims are embedded in BOTH the access token AND the refresh token
+        because get_token() builds the base token that both are derived from.
+        """
+        token = super().get_token(user)
+
+        # Add custom claims — these become part of the JWT payload
+        token['role']      = user.role
+        token['full_name'] = user.full_name
+        token['email']     = user.email
+        # Note: never embed sensitive data like passwords or tokens-in-tokens here.
+        # Role, name, and email are safe — they're already known to the user.
+
+        return token
+
+    def validate(self, attrs):
+        """
+        validate() runs after credential checking (email + password).
+        The parent's validate() raises AuthenticationFailed if credentials are wrong,
+        then returns a dict with 'access' and 'refresh' token strings if they're correct.
+
+        We call super().validate(attrs) first to let SimpleJWT do its credential check.
+        After that passes, self.user is populated with the authenticated User instance.
+        We then add our own gate: reject verified=False accounts even if the password
+        was correct. This is the second enforcement layer (the admin panel is the first).
+
+        attrs is a dict: {'email': '...', 'password': '...'}
+        data is the return value of super().validate() — the token pair dict.
+        """
+        data = super().validate(attrs)
+        # At this point credentials are valid and self.user is set
+
+        if not self.user.is_verified:
+            raise AuthenticationFailed(
+                'Your account has not been verified yet. '
+                'Please wait for an administrator to approve your account.'
+            )
+            # AuthenticationFailed → HTTP 401 with a clear message.
+            # We do NOT raise this before calling super() because we don't want
+            # to give attackers information about whether an email exists in the
+            # system before they even provide a correct password.
+
+        return data
+        # data contains: {'access': 'eyJ...', 'refresh': 'eyJ...'}
+        # This is what gets sent back to the client as the login response.

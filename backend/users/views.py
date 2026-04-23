@@ -3,8 +3,9 @@ from rest_framework.generics import RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import UserRegistrationSerializer, UserProfileSerializer
+from .serializers import UserRegistrationSerializer, UserProfileSerializer, CustomTokenObtainPairSerializer
 
 
 class RegisterView(APIView):
@@ -93,3 +94,24 @@ class MeView(RetrieveUpdateAPIView):
         This is the standard pattern for a "me" endpoint in DRF.
         """
         return self.request.user
+
+
+class LoginView(TokenObtainPairView):
+    """
+    POST /api/auth/login/
+
+    Accepts: { "email": "...", "password": "..." }
+    Returns: { "access": "eyJ...", "refresh": "eyJ..." }
+
+    Why subclass TokenObtainPairView instead of using it directly?
+    TokenObtainPairView uses SimpleJWT's default TokenObtainPairSerializer
+    which doesn't know about our custom claims or our verification gate.
+    By pointing serializer_class at our CustomTokenObtainPairSerializer,
+    we inject both behaviours while keeping all of SimpleJWT's credential
+    checking, token minting, and response formatting intact.
+
+    permission_classes = [AllowAny]
+    Login must be public — the user has no token yet when they call this.
+    """
+    serializer_class   = CustomTokenObtainPairSerializer
+    permission_classes = [AllowAny]
