@@ -4,6 +4,7 @@ import RegisterPage from './pages/RegisterPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import CoordinatorDashboard from './pages/CoordinatorDashboard'
 import AgentDashboard from './pages/AgentDashboard'
+import SubmitReportPage from './pages/SubmitReportPage'
 
 /*
   App.jsx — Root route tree.
@@ -17,6 +18,7 @@ import AgentDashboard from './pages/AgentDashboard'
     /register     -> RegisterPage (public)
     /dashboard    -> CoordinatorDashboard (protected, coordinator only)
     /agent        -> AgentDashboard (protected, field_agent only)
+    /agent/submit -> SubmitReportPage (protected, field_agent only)
 */
 
 export default function App() {
@@ -53,6 +55,16 @@ export default function App() {
         }
       />
       {/* Field-agent-only. Mirrors the coordinator pattern above. */}
+
+      <Route
+        path="/agent/submit"
+        element={
+          <ProtectedRoute requiredRole="field_agent">
+            <SubmitReportPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Nested under /agent/ to signal this is an agent-only page. */}
 
       <Route
         path="*"

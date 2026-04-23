@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { getMyReports } from '../api/reportsApi'
 import Navbar              from '../components/Navbar'
 import StatCard            from '../components/StatCard'
@@ -71,15 +72,9 @@ export default function AgentDashboard() {
         {/* Section header */}
         <div style={styles.sectionHeader}>
           <h2 style={styles.sectionTitle}>My Reports</h2>
-          <a href="/agent/submit" style={styles.submitLink}>
+          <Link to="/agent/submit" style={styles.submitLink}>
             + Submit Report
-          </a>
-          {/*
-            Plain <a> for now — navigates to /agent/submit.
-            In Session 19 this route will be a full form page.
-            Using <a> instead of <Link> keeps this component decoupled from
-            react-router until the route actually exists.
-          */}
+          </Link>
         </div>
 
         {/* Content states */}

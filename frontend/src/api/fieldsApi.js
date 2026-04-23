@@ -52,3 +52,29 @@ export async function deleteField(id) {
     try to read response.data. We simply await and let errors propagate.
   */
 }
+
+export async function patchField(id, data) {
+  const response = await axiosInstance.patch(`fields/${id}/`, data)
+  return response.data
+  /*
+    Used for assigning / unassigning agents on a specific field.
+    Input examples:
+      { assigned_agent_id: 7 }   ← assign agent with pk=7 to this field
+      { assigned_agent_id: null } ← clear the field's agent assignment
+    The backend FieldSerializer restricts assigned_agent_id to agents
+    already on the coordinator's team (for_coordinator queryset).
+    Returns the full updated field object on success (200 OK).
+  */
+}
+
+export async function getAssignedFields() {
+  const response = await axiosInstance.get('fields/my-assigned/')
+  return response.data
+  /*
+    Field-agent only endpoint (GET /api/fields/my-assigned/).
+    Returns a plain array (not paginated) of fields where
+    assigned_agent = request.user.
+    Used by SubmitReportPage to populate the field selector dropdown.
+  */
+}
+

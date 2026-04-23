@@ -1,10 +1,12 @@
 from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Field
 from .serializers import FieldSerializer
-from users.permissions import IsCoordinator, IsFieldOwner
+from users.permissions import IsCoordinator, IsFieldAgent, IsFieldOwner
 
 
 class FieldViewSet(viewsets.ModelViewSet):
@@ -109,3 +111,36 @@ class FieldViewSet(viewsets.ModelViewSet):
         before calling serializer.create(validated_data).
         """
         serializer.save(coordinator=self.request.user)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='my-assigned',
+        permission_classes=[IsAuthenticated, IsFieldAgent],
+    )
+    def my_assigned(self, request):
+        """
+        GET /api/fields/my-assigned/
+
+        Returns all fields whose assigned_agent FK points to the requesting user.
+        Used by SubmitReportPage to populate the field dropdown — an agent can
+        only submit a report for a field they are currently assigned to.
+
+        Why @action instead of a separate view?
+        It lives on the same router as the other FieldViewSet endpoints, so it
+        inherits the base URL prefix (/api/fields/) without needing another
+        url.py entry. The url_path='my-assigned' controls the URL segment that
+        follows the prefix: GET /api/fields/my-assigned/
+
+        Why separate permission_classes here?
+        The ViewSet's class-level permission_classes=[IsCoordinator] would block
+        field agents. @action lets us override that on a per-action basis —
+        only this one action is agent-accessible; all others remain coordinator-only.
+        """
+        qs = (
+            Field.objects
+            .filter(assigned_agent=request.user)
+            .select_related('coordinator', 'assigned_agent')
+        )
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)

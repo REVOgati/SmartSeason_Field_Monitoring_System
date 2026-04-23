@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react'
-import { getFields, createField, deleteField } from '../api/fieldsApi'
+import { getFields, createField, deleteField, patchField } from '../api/fieldsApi'
+import { getAgentPool, getMyTeam, assignAgent, dropAgent } from '../api/agentsApi'
 import Navbar      from '../components/Navbar'
 import StatCard    from '../components/StatCard'
 import PageLayout, { contentArea } from '../components/PageLayout'
@@ -54,6 +55,15 @@ export default function CoordinatorDashboard() {
 
   // â”€â”€ Delete tracking â€” which field ID is currently being deleted â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [deletingId, setDeletingId] = useState(null)
+
+  // -- Assign Agent modal state -----------------------------------------------
+  const [assignTarget,    setAssignTarget]    = useState(null)  // fieldId or null
+  const [poolAgents,      setPoolAgents]      = useState([])
+  const [teamAgents,      setTeamAgents]      = useState([])
+  const [agentsLoading,   setAgentsLoading]   = useState(false)
+  const [assignError,     setAssignError]     = useState(null)
+  const [assigningId,     setAssigningId]     = useState(null)
+  const [droppingFieldId, setDroppingFieldId] = useState(null)
 
   // â”€â”€ Fetch all fields on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -152,6 +162,91 @@ export default function CoordinatorDashboard() {
     setFormError(null)
   }
 
+  // -- Open Assign Agent modal: load pool + team in one shot ------------------
+  const handleOpenAssign = useCallback(async (fieldId) => {
+    setAssignTarget(fieldId)
+    setAssignError(null)
+    setAgentsLoading(true)
+    try {
+      const [poolRes, teamRes] = await Promise.all([getAgentPool(), getMyTeam()])
+      setPoolAgents(poolRes.results ?? poolRes)
+      setTeamAgents(teamRes.results ?? teamRes)
+    } catch (err) {
+      setAssignError(err?.response?.data?.detail || 'Could not load agents.')
+    } finally {
+      setAgentsLoading(false)
+    }
+  }, [])
+
+  function closeAssignModal() {
+    setAssignTarget(null)
+    setPoolAgents([])
+    setTeamAgents([])
+    setAssignError(null)
+  }
+
+  /*
+    handleAssignAgent — pick an agent from the modal and assign them to the field.
+
+    Pool agents  (isFromPool=true):
+      1. POST /api/agents/{pk}/assign/ — adds them to the coordinator's team
+      2. PATCH /api/fields/{id}/ with assigned_agent_id — links to the field
+    Team agents (already on team):
+      Only step 2.
+
+    On success the field card re-renders via local state — no re-fetch needed.
+  */
+  const handleAssignAgent = useCallback(async (agentPk, agentObj, isFromPool) => {
+    setAssigningId(agentPk)
+    setAssignError(null)
+    try {
+      if (isFromPool) {
+        await assignAgent(agentPk)
+        setPoolAgents(prev => prev.filter(a => a.id !== agentPk))
+        setTeamAgents(prev => [...prev, agentObj])
+      }
+      const updated = await patchField(assignTarget, { assigned_agent_id: agentPk })
+      setFields(prev => prev.map(f => f.id === assignTarget ? updated : f))
+      closeAssignModal()
+    } catch (err) {
+      const body = err?.response?.data
+      const msg  = typeof body === 'string'
+        ? body
+        : Object.values(body || {}).flat().join(' ') || 'Could not assign agent.'
+      setAssignError(msg)
+    } finally {
+      setAssigningId(null)
+    }
+  }, [assignTarget])
+
+  /*
+    handleDropAgent — releases the agent from the coordinator's team.
+
+    POST /api/agents/{agentPk}/drop/ clears:
+      - agent.coordinator  (agent goes back to pool)
+      - assigned_agent on ALL fields they were assigned to
+
+    We mirror this in local state: map through fields and null out
+    assigned_agent wherever it matched this agent.
+  */
+  const handleDropAgent = useCallback(async (fieldId, agentPk) => {
+    if (!window.confirm(
+      'Drop this agent from your team? They will be unassigned from ALL their fields.'
+    )) return
+
+    setDroppingFieldId(fieldId)
+    try {
+      await dropAgent(agentPk)
+      setFields(prev => prev.map(f =>
+        f.assigned_agent?.id === agentPk ? { ...f, assigned_agent: null } : f
+      ))
+    } catch (err) {
+      alert(err?.response?.data?.detail || 'Could not drop agent.')
+    } finally {
+      setDroppingFieldId(null)
+    }
+  }, [])
+
   // â”€â”€ Derived stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const activeCount   = fields.filter(f => f.is_active).length
   const assignedCount = fields.filter(f => f.assigned_agent !== null).length
@@ -200,6 +295,9 @@ export default function CoordinatorDashboard() {
                 field={field}
                 onDelete={handleDelete}
                 isDeleting={deletingId === field.id}
+                onAssign={handleOpenAssign}
+                onDrop={handleDropAgent}
+                isDropping={droppingFieldId === field.id}
               />
             ))}
           </div>
@@ -207,7 +305,7 @@ export default function CoordinatorDashboard() {
 
       </main>
 
-      {/* Add Field modal â€” uses shared FormModal */}
+      {/* Add Field modal */}
       {showModal && (
         <FormModal title="Add New Field" onClose={closeModal} error={formError}>
           <form onSubmit={handleAddField} style={s.form}>
@@ -267,15 +365,74 @@ export default function CoordinatorDashboard() {
         </FormModal>
       )}
 
+      {/* Assign Agent modal */}
+      {assignTarget !== null && (
+        <FormModal title="Assign Agent" onClose={closeAssignModal} error={assignError}>
+          {agentsLoading && <p style={s.stateMsg}>Loading agents…</p>}
+
+          {!agentsLoading && teamAgents.length === 0 && poolAgents.length === 0 && (
+            <p style={s.emptyState}>No agents available. Add agents to your team first via the agent pool.</p>
+          )}
+
+          {/* Your team agents (already on team, just patch the field) */}
+          {!agentsLoading && teamAgents.length > 0 && (
+            <>
+              <p style={styles.agentGroupLabel}>Your Team</p>
+              {teamAgents.map(agent => (
+                <div key={agent.id} style={styles.agentRow}>
+                  <div>
+                    <p style={styles.agentName}>{agent.full_name}</p>
+                    <p style={styles.agentEmail}>{agent.email}</p>
+                  </div>
+                  <button
+                    style={{ ...s.submitBtn, padding: '0.4rem 0.9rem', fontSize: '0.82rem', opacity: assigningId === agent.id ? 0.6 : 1 }}
+                    onClick={() => handleAssignAgent(agent.id, agent, false)}
+                    disabled={assigningId !== null}
+                  >
+                    {assigningId === agent.id ? 'Assigning…' : 'Assign'}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Pool agents (unassigned globally — adding them also joins your team) */}
+          {!agentsLoading && poolAgents.length > 0 && (
+            <>
+              <p style={styles.agentGroupLabel}>Agent Pool (unassigned)</p>
+              {poolAgents.map(agent => (
+                <div key={agent.id} style={styles.agentRow}>
+                  <div>
+                    <p style={styles.agentName}>{agent.full_name}</p>
+                    <p style={styles.agentEmail}>{agent.email}</p>
+                  </div>
+                  <button
+                    style={{ ...s.submitBtn, padding: '0.4rem 0.9rem', fontSize: '0.82rem', opacity: assigningId === agent.id ? 0.6 : 1 }}
+                    onClick={() => handleAssignAgent(agent.id, agent, true)}
+                    disabled={assigningId !== null}
+                  >
+                    {assigningId === agent.id ? 'Adding…' : 'Add + Assign'}
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+        </FormModal>
+      )}
+
     </PageLayout>
   )
 }
 
-// â”€â”€ FieldCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- FieldCard ----------------------------------------------------------------
 /*
-  Renders one field as a card. Status badge colour: Active â†’ green | Inactive â†’ amber.
+  Renders one field as a card.
+  Status badge colour: Active -> green | Inactive -> amber.
+  Agent actions:
+    Assign Agent button — shown when assigned_agent is null
+    Drop Agent button   — shown when an agent is assigned
 */
-function FieldCard({ field, onDelete, isDeleting }) {
+function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }) {
   const badgeStyle = {
     ...styles.badge,
     backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
@@ -291,23 +448,42 @@ function FieldCard({ field, onDelete, isDeleting }) {
       </div>
 
       <h3 style={styles.fieldName}>{field.name}</h3>
-      <p style={styles.metaRow}>ðŸ“ {field.location}</p>
+      <p style={styles.metaRow}>📍 {field.location}</p>
 
       {field.size_in_acres && (
-        <p style={styles.metaRow}>ðŸ“ {Number(field.size_in_acres).toFixed(2)} acres</p>
+        <p style={styles.metaRow}>📐 {Number(field.size_in_acres).toFixed(2)} acres</p>
       )}
 
       <p style={styles.metaRow}>
-        ðŸ‘¤ {field.assigned_agent ? field.assigned_agent.full_name : 'Unassigned'}
+        👤 {field.assigned_agent ? field.assigned_agent.full_name : 'Unassigned'}
       </p>
 
       <div style={styles.cardFooter}>
+        {!field.assigned_agent && (
+          <button
+            style={styles.assignBtn}
+            onClick={() => onAssign(field.id)}
+          >
+            Assign Agent
+          </button>
+        )}
+
+        {field.assigned_agent && (
+          <button
+            style={{ ...styles.dropBtn, opacity: isDropping ? 0.55 : 1 }}
+            onClick={() => onDrop(field.id, field.assigned_agent.id)}
+            disabled={isDropping}
+          >
+            {isDropping ? 'Dropping…' : 'Drop Agent'}
+          </button>
+        )}
+
         <button
           style={{ ...styles.deleteBtn, opacity: isDeleting ? 0.55 : 1 }}
           onClick={() => onDelete(field.id)}
           disabled={isDeleting}
         >
-          {isDeleting ? 'Deletingâ€¦' : 'Delete'}
+          {isDeleting ? 'Deleting…' : 'Delete'}
         </button>
       </div>
     </div>
@@ -326,6 +502,12 @@ const styles = {
   badge:        { fontSize: '0.75rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '30px', border: '1px solid transparent' },
   fieldName:    { margin: '0 0 0.75rem', fontSize: '1.05rem', fontWeight: '700', color: '#1B2E1B' },
   metaRow:      { margin: '0.3rem 0', fontSize: '0.85rem', color: '#4A6741' },
-  cardFooter:   { marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' },
-  deleteBtn:    { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#C62828', border: '1.5px solid #FFCDD2', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
+  cardFooter:      { marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' },
+  deleteBtn:       { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#C62828', border: '1.5px solid #FFCDD2', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
+  assignBtn:       { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#1565C0', border: '1.5px solid #90CAF9', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
+  dropBtn:         { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#E65100', border: '1.5px solid #FFCC80', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
+  agentGroupLabel: { margin: '1rem 0 0.4rem', fontSize: '0.8rem', fontWeight: '700', color: '#4A6741', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  agentRow:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid #E8F5E9' },
+  agentName:       { margin: 0, fontWeight: '600', fontSize: '0.9rem', color: '#1B2E1B' },
+  agentEmail:      { margin: '2px 0 0', fontSize: '0.78rem', color: '#4A6741' },
 }
