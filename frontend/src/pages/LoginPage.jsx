@@ -117,6 +117,7 @@ export default function LoginPage() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
+        <div style={styles.logoMark}>🌿</div>
         <h1 style={styles.title}>SmartSeason</h1>
         <p style={styles.subtitle}>Field Monitoring System</p>
 
@@ -177,10 +178,11 @@ export default function LoginPage() {
 }
 
 /*
-  Inline styles — intentionally minimal for now.
-  In Session 18 we will replace these with a proper CSS solution.
-  Keeping styles here (co-located) means the component is self-contained
-  and renders correctly without any external stylesheet.
+  Inline styles — green/white palette.
+  Primary green  #1B5E20 / #2E7D32
+  Pale green bg  #E8F5E9
+  Mint border    #C8E6C9
+  Off-white card #F9FBF9
 */
 const styles = {
   page: {
@@ -188,26 +190,34 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f4f8',
-    fontFamily: 'sans-serif',
+    backgroundColor: '#E8F5E9',
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     padding: '2.5rem',
-    borderRadius: '12px',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
+    borderRadius: '14px',
+    boxShadow: '0 6px 32px rgba(27, 94, 32, 0.14)',
     width: '100%',
     maxWidth: '400px',
   },
+  logoMark: {
+    textAlign: 'center',
+    fontSize: '2.2rem',
+    marginBottom: '0.25rem',
+  },
   title: {
     margin: '0 0 4px',
-    fontSize: '1.6rem',
-    color: '#1a1a2e',
+    fontSize: '1.7rem',
+    fontWeight: '800',
+    color: '#1B5E20',
+    textAlign: 'center',
   },
   subtitle: {
     margin: '0 0 2rem',
-    fontSize: '0.9rem',
-    color: '#666',
+    fontSize: '0.875rem',
+    color: '#4A6741',
+    textAlign: 'center',
   },
   form: {
     display: 'flex',
@@ -217,31 +227,34 @@ const styles = {
   label: {
     fontWeight: '600',
     fontSize: '0.875rem',
-    color: '#333',
+    color: '#2E7D32',
   },
   input: {
     padding: '10px 12px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
+    border: '1.5px solid #C8E6C9',
+    borderRadius: '8px',
     fontSize: '1rem',
     outline: 'none',
+    backgroundColor: '#F9FBF9',
+    color: '#1B2E1B',
   },
   button: {
     marginTop: '8px',
     padding: '12px',
-    backgroundColor: '#2d6a4f',
-    color: '#fff',
+    backgroundColor: '#2E7D32',
+    color: '#FFFFFF',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '8px',
     fontSize: '1rem',
-    fontWeight: '600',
+    fontWeight: '700',
     cursor: 'pointer',
+    letterSpacing: '0.3px',
   },
   error: {
-    color: '#c0392b',
-    backgroundColor: '#fdecea',
-    border: '1px solid #f5c6cb',
-    borderRadius: '6px',
+    color: '#C62828',
+    backgroundColor: '#FFEBEE',
+    border: '1px solid #FFCDD2',
+    borderRadius: '8px',
     padding: '10px 12px',
     fontSize: '0.875rem',
     margin: '0',

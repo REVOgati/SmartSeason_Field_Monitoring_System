@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import ProtectedRoute from './routes/ProtectedRoute'
+import CoordinatorDashboard from './pages/CoordinatorDashboard'
 
 /*
   App.jsx — Root route tree.
@@ -8,28 +9,20 @@ import ProtectedRoute from './routes/ProtectedRoute'
   All page-level <Route> entries live here. App.jsx's only responsibility
   is declaring which component renders at which URL path. No logic, no state.
 
-  Current routes (Session 15):
+  Current routes (Session 16):
     /             → redirects to /login
     /login        → LoginPage (public)
-    /dashboard    → CoordinatorDashboard (protected, coordinator only) — placeholder
-    /agent        → AgentDashboard (protected, field_agent only) — placeholder
+    /dashboard    → CoordinatorDashboard (protected, coordinator only) ✅ Session 16
+    /agent        → AgentDashboard (protected, field_agent only) — placeholder, Session 17
     *             → 404 fallback
 
   Why <Routes> here and <BrowserRouter> in main.jsx?
   BrowserRouter supplies the URL context (window.location).
   Routes reads that context and matches the current URL to its children.
   They are intentionally separate — context provider vs. consumer.
-
-  Why <Navigate> for / instead of a welcome page?
-  The system has no public landing page — it is an internal dashboard tool.
-  Unauthenticated users go to /login; authenticated users are redirected
-  by ProtectedRoute to their correct dashboard.
 */
 
-// Placeholder dashboard components — full pages built in Session 16-17
-function CoordinatorDashboard() {
-  return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h2>Coordinator Dashboard</h2><p>Coming in Session 16.</p></div>
-}
+// Placeholder — full AgentDashboard page built in Session 17
 function AgentDashboard() {
   return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h2>Agent Dashboard</h2><p>Coming in Session 17.</p></div>
 }
