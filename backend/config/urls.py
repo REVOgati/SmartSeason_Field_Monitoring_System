@@ -45,4 +45,14 @@ urlpatterns = [
     #   GET  /api/agents/my-team/           → MyTeamView
     #   POST /api/agents/{pk}/assign/       → AssignAgentView
     #   POST /api/agents/{pk}/drop/         → DropAgentView
+
+    path('api/reports/', include('monitoring.urls')),
+    # Mounts the monitoring endpoints at /api/reports/
+    # The Router inside monitoring/urls.py generates:
+    #   GET  /api/reports/       → list   (agent: own reports | coordinator: all their field reports)
+    #   POST /api/reports/       → create (field agents only)
+    #   GET  /api/reports/{id}/  → retrieve
+    #   PUT  /api/reports/{id}/  → update  (disabled via get_permissions)
+    #   PATCH /api/reports/{id}/ → partial_update (disabled via get_permissions)
+    #   DELETE /api/reports/{id}/→ destroy (disabled via get_permissions)
 ]

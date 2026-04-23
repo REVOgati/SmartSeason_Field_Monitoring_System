@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     # Registering it here lets Django find its app config and templates.
     'users',
     'fields',
+    'monitoring',
+    # The monitoring app holds FieldReport — the core data collection model.
+    # Agents submit reports here; coordinators read them.
 ]
 
 AUTH_USER_MODEL = 'users.User'
