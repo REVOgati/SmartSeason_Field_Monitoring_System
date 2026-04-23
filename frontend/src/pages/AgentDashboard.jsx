@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyReports } from '../api/reportsApi'
+import { getAssignedFields } from '../api/fieldsApi'
 import Navbar              from '../components/Navbar'
 import StatCard            from '../components/StatCard'
 import PageLayout, { contentArea } from '../components/PageLayout'
@@ -24,22 +25,27 @@ import { sharedStyles as s } from '../components/sharedStyles'
 
 export default function AgentDashboard() {
 
-  const [reports, setReports] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [reports,        setReports]        = useState([])
+  const [assignedFields, setAssignedFields] = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [error,          setError]          = useState(null)
 
   // ── Fetch on mount ────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
-        const data = await getMyReports()
-        setReports(data.results ?? data)
+        const [reportData, fieldData] = await Promise.all([
+          getMyReports(),
+          getAssignedFields(),
+        ])
+        setReports(reportData.results ?? reportData)
+        setAssignedFields(Array.isArray(fieldData) ? fieldData : (fieldData.results ?? []))
         /*
-          Same pagination envelope as fields:
-            { count, next, previous, results: [...] }
+          getAssignedFields() returns a plain array from the my-assigned action;
+          fall back to .results if the shape ever gets paginated.
         */
       } catch (err) {
-        setError(err?.response?.data?.detail || 'Failed to load reports.')
+        setError(err?.response?.data?.detail || 'Failed to load data.')
       } finally {
         setLoading(false)
       }
@@ -48,12 +54,7 @@ export default function AgentDashboard() {
   }, [])
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const pestCount    = reports.filter(r => r.pest_observed).length
-  const fieldsCovered = new Set(reports.map(r => r.field?.id).filter(Boolean)).size
-  /*
-    new Set() deduplicates field IDs so the stat shows distinct fields
-    visited, not total report count.
-  */
+  const pestCount = reports.filter(r => r.pest_observed).length
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -64,10 +65,30 @@ export default function AgentDashboard() {
 
         {/* Stats row */}
         <div style={styles.statsBar}>
-          <StatCard label="Reports Submitted" value={reports.length} />
-          <StatCard label="Pest Alerts"        value={pestCount}     />
-          <StatCard label="Fields Covered"     value={fieldsCovered} />
+          <StatCard label="Reports Submitted"  value={reports.length}        />
+          <StatCard label="Pest Alerts"         value={pestCount}             />
+          <StatCard label="Fields Assigned"     value={assignedFields.length} />
         </div>
+
+        {/* Assigned fields section */}
+        <div style={styles.sectionHeader}>
+          <h2 style={styles.sectionTitle}>My Assigned Fields</h2>
+        </div>
+
+        {!loading && assignedFields.length === 0 && (
+          <div style={{...s.emptyState, marginBottom: '2rem'}}>
+            <p>No fields assigned yet.</p>
+            <p>Your coordinator will assign fields to you from the dashboard.</p>
+          </div>
+        )}
+
+        {!loading && assignedFields.length > 0 && (
+          <div style={styles.fieldsRow}>
+            {assignedFields.map(field => (
+              <AssignedFieldChip key={field.id} field={field} />
+            ))}
+          </div>
+        )}
 
         {/* Section header */}
         <div style={styles.sectionHeader}>
@@ -162,6 +183,33 @@ function ReportCard({ report }) {
   )
 }
 
+// ── AssignedFieldChip ─────────────────────────────────────────────────────────
+/*
+  Small card for each field assigned to the agent.
+  Shows field name, location, crop type, and active status.
+  Appears in the "My Assigned Fields" section above the reports list.
+*/
+function AssignedFieldChip({ field }) {
+  return (
+    <div style={styles.fieldChip}>
+      <div style={styles.chipTop}>
+        <span style={styles.chipCrop}>{field.crop_type}</span>
+        <span style={{
+          fontSize: '0.72rem', fontWeight: '700',
+          padding: '0.15rem 0.5rem', borderRadius: '20px',
+          backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
+          color:           field.is_active ? '#2E7D32' : '#E65100',
+          border:          field.is_active ? '1px solid #A5D6A7' : '1px solid #FFCC80',
+        }}>
+          {field.is_active ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+      <p style={styles.chipName}>{field.name}</p>
+      <p style={styles.chipMeta}>📍 {field.location}</p>
+    </div>
+  )
+}
+
 // ── Page-local styles ─────────────────────────────────────────────────────────
 const styles = {
   statsBar:      { display: 'flex', gap: '1rem', marginBottom: '2rem' },
@@ -176,6 +224,48 @@ const styles = {
     fontWeight: '700',
     fontSize: '0.9rem',
     boxShadow: '0 2px 6px rgba(27, 94, 32, 0.25)',
+  },
+  fieldsRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.85rem',
+    marginBottom: '2.5rem',
+  },
+  fieldChip: {
+    backgroundColor: '#F1F8E9',
+    border: '1px solid #C8E6C9',
+    borderRadius: '10px',
+    padding: '0.85rem 1rem',
+    minWidth: '180px',
+    maxWidth: '260px',
+    flex: '1 1 180px',
+    boxShadow: '0 1px 6px rgba(27, 94, 32, 0.08)',
+  },
+  chipTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '0.4rem',
+  },
+  chipCrop: {
+    fontSize: '0.73rem',
+    fontWeight: '700',
+    color: '#2E7D32',
+    backgroundColor: '#E8F5E9',
+    padding: '0.15rem 0.5rem',
+    borderRadius: '4px',
+    border: '1px solid #A5D6A7',
+  },
+  chipName: {
+    margin: '0 0 0.2rem',
+    fontWeight: '700',
+    fontSize: '0.95rem',
+    color: '#1B2E1B',
+  },
+  chipMeta: {
+    margin: 0,
+    fontSize: '0.8rem',
+    color: '#4A6741',
   },
   list: {
     display: 'flex',

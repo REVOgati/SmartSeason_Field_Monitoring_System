@@ -40,10 +40,11 @@ class FieldReportViewSet(viewsets.ModelViewSet):
 
     # --- Filtering, searching, ordering ---
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['crop_health', 'pest_observed', 'report_date']
+    filterset_fields = ['crop_health', 'pest_observed', 'report_date', 'field']
     # GET /api/reports/?crop_health=poor
     # GET /api/reports/?pest_observed=true
     # GET /api/reports/?report_date=2026-04-15
+    # GET /api/reports/?field=<pk>   ← used by FieldDetailPanel in CoordinatorDashboard
 
     search_fields    = ['notes', 'field__name', 'agent__full_name']
     # GET /api/reports/?search=nakuru

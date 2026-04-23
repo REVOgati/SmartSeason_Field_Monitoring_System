@@ -84,7 +84,7 @@ export default function LoginPage() {
 
       // Role-based redirect: send each user type to their own dashboard.
       if (decoded.role === 'coordinator') {
-        navigate('/dashboard', { replace: true })
+        navigate('/coordinator', { replace: true })
       } else if (decoded.role === 'field_agent') {
         navigate('/agent', { replace: true })
       } else {

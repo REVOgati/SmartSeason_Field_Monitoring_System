@@ -49,3 +49,13 @@ export async function submitReport(data) {
     For photo uploads the caller must send a FormData instance, not a plain object.
   */
 }
+
+export async function getFieldReports(fieldId) {
+  const response = await axiosInstance.get(`reports/?field=${fieldId}&ordering=-submitted_at`)
+  return response.data
+  /*
+    Coordinator-only use: fetch all reports for a specific field.
+    Uses the ?field= filter added to FieldReportViewSet filterset_fields.
+    Response is paginated: { count, next, previous, results: [...] }
+  */
+}

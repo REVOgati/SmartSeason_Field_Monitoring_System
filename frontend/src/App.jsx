@@ -3,48 +3,48 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import CoordinatorDashboard from './pages/CoordinatorDashboard'
+import CoordinatorReportsPage from './pages/CoordinatorReportsPage'
 import AgentDashboard from './pages/AgentDashboard'
 import SubmitReportPage from './pages/SubmitReportPage'
 
 /*
   App.jsx — Root route tree.
 
-  All page-level <Route> entries live here. App.jsx's only responsibility
-  is declaring which component renders at which URL path. No logic, no state.
-
   Routes:
-    /             -> redirects to /login
-    /login        -> LoginPage (public)
-    /register     -> RegisterPage (public)
-    /dashboard    -> CoordinatorDashboard (protected, coordinator only)
-    /agent        -> AgentDashboard (protected, field_agent only)
-    /agent/submit -> SubmitReportPage (protected, field_agent only)
+    /                     -> redirects to /login
+    /login                -> LoginPage (public)
+    /register             -> RegisterPage (public)
+    /coordinator          -> CoordinatorDashboard (protected, coordinator only)
+    /coordinator/reports  -> CoordinatorReportsPage (protected, coordinator only)
+    /agent                -> AgentDashboard (protected, field_agent only)
+    /agent/submit         -> SubmitReportPage (protected, field_agent only)
 */
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
-      {/* Redirect root to /login. Once logged in, LoginPage redirects to the
-          correct dashboard, so authenticated users effectively skip /login. */}
 
-      <Route path="/login" element={<LoginPage />} />
-      {/* Public route — no ProtectedRoute wrapper needed. */}
-
+      <Route path="/login"    element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      {/* Public route — new users register here. Account starts unverified;
-          admin must approve before the user can log in. */}
 
       <Route
-        path="/dashboard"
+        path="/coordinator"
         element={
           <ProtectedRoute requiredRole="coordinator">
             <CoordinatorDashboard />
           </ProtectedRoute>
         }
       />
-      {/* Coordinator-only. ProtectedRoute redirects agents to /agent
-          and unauthenticated users to /login. */}
+
+      <Route
+        path="/coordinator/reports"
+        element={
+          <ProtectedRoute requiredRole="coordinator">
+            <CoordinatorReportsPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/agent"
@@ -54,7 +54,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Field-agent-only. Mirrors the coordinator pattern above. */}
 
       <Route
         path="/agent/submit"
@@ -64,7 +63,12 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Nested under /agent/ to signal this is an agent-only page. */}
+
+      <Route
+        path="/dashboard"
+        element={<Navigate to="/coordinator" replace />}
+      />
+      {/* Legacy redirect: old /dashboard → /coordinator */}
 
       <Route
         path="*"

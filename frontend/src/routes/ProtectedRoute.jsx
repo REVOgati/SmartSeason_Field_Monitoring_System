@@ -56,7 +56,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
       The user is logged in but has the wrong role for this route.
       Send them to their own correct dashboard instead of showing an error.
     */
-    const correctPath = user?.role === 'coordinator' ? '/dashboard' : '/agent'
+    const correctPath = user?.role === 'coordinator' ? '/coordinator' : '/agent'
     return <Navigate to={correctPath} replace />
   }
 
