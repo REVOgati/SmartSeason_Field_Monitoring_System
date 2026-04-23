@@ -48,3 +48,28 @@ export async function refreshAccessToken(refreshToken) {
   return response.data
   // response.data = { access: "eyJ...", refresh: "eyJ..." }
 }
+
+export async function registerUser({ email, full_name, role, password, password2 }) {
+  /*
+    POST /api/auth/register/
+    Body: { email, full_name, role, password, password2 }
+
+    Accepted roles: "coordinator" | "field_agent"
+    ("superuser" is blocked at the backend serializer level.)
+
+    On success (201 Created): returns a plain message object, NOT the new user.
+      { "message": "Account created. Awaiting verification." }
+
+    The account is created with is_verified=False. The user cannot log in
+    until a superuser approves them via the Django admin panel.
+
+    On validation error (400): returns a structured error dict, e.g.:
+      { "email": ["user with this email already exists."] }
+      { "password2": ["Passwords do not match."] }
+    The caller flattens these for display.
+  */
+  const response = await axiosInstance.post('auth/register/', {
+    email, full_name, role, password, password2,
+  })
+  return response.data
+}

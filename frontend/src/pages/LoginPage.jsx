@@ -172,6 +172,12 @@ export default function LoginPage() {
           </button>
 
         </form>
+
+        <p style={styles.registerPrompt}>
+          Don't have an account?{' '}
+          <a href="/register" style={styles.link}>Create one here</a>
+        </p>
+
       </div>
     </div>
   )
@@ -258,5 +264,16 @@ const styles = {
     padding: '10px 12px',
     fontSize: '0.875rem',
     margin: '0',
+  },
+  registerPrompt: {
+    marginTop: '1.25rem',
+    textAlign: 'center',
+    fontSize: '0.875rem',
+    color: '#5A7A5A',
+  },
+  link: {
+    color: '#2E7D32',
+    fontWeight: '700',
+    textDecoration: 'none',
   },
 }

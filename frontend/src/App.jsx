@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import CoordinatorDashboard from './pages/CoordinatorDashboard'
+import AgentDashboard from './pages/AgentDashboard'
 
 /*
   App.jsx — Root route tree.
@@ -9,23 +11,13 @@ import CoordinatorDashboard from './pages/CoordinatorDashboard'
   All page-level <Route> entries live here. App.jsx's only responsibility
   is declaring which component renders at which URL path. No logic, no state.
 
-  Current routes (Session 16):
-    /             → redirects to /login
-    /login        → LoginPage (public)
-    /dashboard    → CoordinatorDashboard (protected, coordinator only) ✅ Session 16
-    /agent        → AgentDashboard (protected, field_agent only) — placeholder, Session 17
-    *             → 404 fallback
-
-  Why <Routes> here and <BrowserRouter> in main.jsx?
-  BrowserRouter supplies the URL context (window.location).
-  Routes reads that context and matches the current URL to its children.
-  They are intentionally separate — context provider vs. consumer.
+  Routes:
+    /             -> redirects to /login
+    /login        -> LoginPage (public)
+    /register     -> RegisterPage (public)
+    /dashboard    -> CoordinatorDashboard (protected, coordinator only)
+    /agent        -> AgentDashboard (protected, field_agent only)
 */
-
-// Placeholder — full AgentDashboard page built in Session 17
-function AgentDashboard() {
-  return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h2>Agent Dashboard</h2><p>Coming in Session 17.</p></div>
-}
 
 export default function App() {
   return (
@@ -36,6 +28,10 @@ export default function App() {
 
       <Route path="/login" element={<LoginPage />} />
       {/* Public route — no ProtectedRoute wrapper needed. */}
+
+      <Route path="/register" element={<RegisterPage />} />
+      {/* Public route — new users register here. Account starts unverified;
+          admin must approve before the user can log in. */}
 
       <Route
         path="/dashboard"
