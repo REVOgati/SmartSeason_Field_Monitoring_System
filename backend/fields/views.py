@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from .models import Field
 from .serializers import FieldSerializer
+from users.permissions import IsCoordinator, IsFieldOwner
 
 
 class FieldViewSet(viewsets.ModelViewSet):
@@ -24,15 +25,19 @@ class FieldViewSet(viewsets.ModelViewSet):
     When a ViewSet is registered with a Router (see urls.py), the router
     figures out which action to call based on the HTTP method and the URL.
 
-    We only need to override two methods to make this production-correct:
-    - get_queryset(): so coordinators see ONLY their own fields
-    - perform_create(): so the coordinator is auto-set from request.user
+    Permission stack — three layers checked in order:
+    1. IsAuthenticated  — must have a valid JWT token
+    2. IsCoordinator    — must have role='coordinator'
+    3. IsFieldOwner     — on detail views, field.coordinator must == request.user
+
+    The first two are view-level (run on every request to any action).
+    IsFieldOwner is object-level (only runs on retrieve/update/destroy).
+    Together they enforce:
+    - Field agents cannot use the fields API at all
+    - Coordinator A cannot see, edit, or delete Coordinator B's fields
     """
     serializer_class   = FieldSerializer
-    permission_classes = [IsAuthenticated]
-    # IsAuthenticated — user must be logged in.
-    # Finer-grained role checking (IsCoordinator) is added in Session 9.
-    # We keep it simple here so the endpoint works while we still don't have JWT.
+    permission_classes = [IsAuthenticated, IsCoordinator, IsFieldOwner]
 
     def get_queryset(self):
         """

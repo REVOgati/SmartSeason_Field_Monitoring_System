@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .serializers import UserRegistrationSerializer, UserProfileSerializer, CustomTokenObtainPairSerializer
+from .permissions import IsVerified
 
 
 class RegisterView(APIView):
@@ -70,18 +71,18 @@ class MeView(RetrieveUpdateAPIView):
     GenericViews are ideal for this — you declare what and DRF handles how.
 
     RetrieveUpdateAPIView gives us:
-    - GET → calls retrieve() → serializes self.get_object() → returns JSON
-    - PUT → full update (all fields required)
+    - GET  → calls retrieve() → serializes self.get_object() → returns JSON
+    - PUT  → full update (all fields required)
     - PATCH → partial update (only send the fields you want to change)
     We get all three HTTP methods for free by choosing this base class.
 
-    permission_classes = [IsAuthenticated]
-    Only a logged-in user can view or edit their own profile.
-    After Session 8 this will be the global default, but we set it explicitly
-    here as documentation of intent while we're still building the auth layer.
+    Permissions: IsAuthenticated + IsVerified.
+    IsVerified adds defence-in-depth — if a superuser flips is_verified=False
+    on an account that still has a live token (tokens last 60 min), this
+    immediately blocks the user from reading or editing their profile.
     """
     serializer_class   = UserProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsVerified]
 
     def get_object(self):
         """
