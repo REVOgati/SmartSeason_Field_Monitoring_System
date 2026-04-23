@@ -34,6 +34,15 @@ class FieldAdmin(admin.ModelAdmin):
         ('Assignment', {
             'fields': ('coordinator', 'assigned_agent'),
         }),
+        ('Crop Timeline', {
+            'description': 'Expected dates are set by the coordinator. Realized dates are recorded by the assigned field agent.',
+            'fields': (
+                ('expected_planting_date', 'realized_planting_date'),
+                ('expected_emergence_date', 'realized_emergence_date'),
+                ('expected_harvest_date', 'realized_harvest_date'),
+                ('expected_ready_date', 'realized_ready_date'),
+            ),
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
         }),

@@ -78,3 +78,34 @@ export async function getAssignedFields() {
   */
 }
 
+export async function getFieldById(id) {
+  const response = await axiosInstance.get(`fields/${id}/`)
+  return response.data
+  /*
+    Coordinator-only. Fetches a single field record by PK.
+    Used by CoordinatorFieldDetailPage on mount.
+    Returns the full Field object including all 8 date fields.
+  */
+}
+
+export async function getFieldDetail(id) {
+  const response = await axiosInstance.get(`fields/${id}/agent-detail/`)
+  return response.data
+  /*
+    Field-agent only. Returns the full field record only if the requesting
+    agent is the assigned_agent — 403 otherwise.
+    Used by AgentFieldDetailPage on mount.
+  */
+}
+
+export async function patchRealizedDates(id, data) {
+  const response = await axiosInstance.patch(`fields/${id}/realized-dates/`, data)
+  return response.data
+  /*
+    Field-agent only. Accepts only the 4 realized_* date fields.
+    Input example:
+      { realized_planting_date: '2026-03-15', realized_emergence_date: '2026-03-28' }
+    All fields are optional (partial). Returns the full updated field object.
+  */
+}
+

@@ -1,11 +1,11 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Field
-from .serializers import FieldSerializer
+from .serializers import FieldSerializer, AgentRealizedDatesSerializer
 from users.permissions import IsCoordinator, IsFieldAgent, IsFieldOwner
 
 
@@ -144,3 +144,68 @@ class FieldViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='agent-detail',
+        permission_classes=[IsAuthenticated, IsFieldAgent],
+    )
+    def agent_detail(self, request, pk=None):
+        """
+        GET /api/fields/{id}/agent-detail/
+
+        Returns the full field record (including all date fields) for a field
+        that is assigned to the requesting agent.  403 is returned if the agent
+        is not the assigned agent for this field — preventing agents from reading
+        details of fields belonging to other agents.
+        """
+        field = self.get_object.__func__(self)  # bypass coordinator queryset
+        # We can't use self.get_object() directly because get_queryset() filters
+        # by coordinator=request.user, which would always 404 for agents.
+        # Instead, look up by pk from the full queryset.
+        try:
+            field = Field.objects.select_related('coordinator', 'assigned_agent').get(pk=pk)
+        except Field.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if field.assigned_agent != request.user:
+            return Response(
+                {'detail': 'You are not assigned to this field.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = FieldSerializer(field, context={'request': request})
+        return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=['patch'],
+        url_path='realized-dates',
+        permission_classes=[IsAuthenticated, IsFieldAgent],
+    )
+    def update_realized_dates(self, request, pk=None):
+        """
+        PATCH /api/fields/{id}/realized-dates/
+
+        Allows a field agent to record the actual (realized) dates for the crop
+        lifecycle on their assigned field.  Accepts only the 4 realized date
+        fields — all other field attributes are ignored, so agents cannot
+        overwrite coordinator-controlled data through this endpoint.
+        """
+        try:
+            field = Field.objects.get(pk=pk)
+        except Field.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if field.assigned_agent != request.user:
+            return Response(
+                {'detail': 'You are not assigned to this field.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = AgentRealizedDatesSerializer(field, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        # Return the full field record so the frontend can refresh its state
+        return Response(FieldSerializer(field, context={'request': request}).data)

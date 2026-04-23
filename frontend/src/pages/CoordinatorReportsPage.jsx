@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  LineChart, Line, Legend,
-} from 'recharts'
+// Charts suspended — uncomment to re-enable recharts visualisations
+// import {
+//   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+//   LineChart, Line, Legend,
+// } from 'recharts'
 import { getMyReports } from '../api/reportsApi'
 import Navbar      from '../components/Navbar'
 import PageLayout, { contentArea } from '../components/PageLayout'
@@ -71,36 +72,22 @@ export default function CoordinatorReportsPage() {
     })
   }, [reports, healthFilter, pestFilter])
 
-  /*
-    healthChartData — for the bar chart.
-    Count reports per crop_health value across ALL (unfiltered) reports.
-  */
-  const healthChartData = useMemo(() => {
-    const counts = { excellent: 0, good: 0, fair: 0, poor: 0 }
-    reports.forEach(r => { if (counts[r.crop_health] !== undefined) counts[r.crop_health]++ })
-    return [
-      { label: 'Excellent', value: counts.excellent, key: 'excellent' },
-      { label: 'Good',      value: counts.good,      key: 'good'      },
-      { label: 'Fair',      value: counts.fair,       key: 'fair'      },
-      { label: 'Poor',      value: counts.poor,       key: 'poor'      },
-    ]
-  }, [reports])
-
-  /*
-    moistureChartData — for the line chart.
-    Take the most recent 30 reports, reverse so oldest is first (left edge),
-    and plot soil_moisture vs report_date.
-  */
-  const moistureChartData = useMemo(() => {
-    return [...reports]
-      .slice(0, 30)
-      .reverse()
-      .map(r => ({
-        date:     r.report_date,
-        moisture: Number(r.soil_moisture),
-        field:    r.field?.name || 'Unknown',
-      }))
-  }, [reports])
+  // Chart data — suspended. Uncomment together with charts row below and recharts import.
+  // const healthChartData = useMemo(() => {
+  //   const counts = { excellent: 0, good: 0, fair: 0, poor: 0 }
+  //   reports.forEach(r => { if (counts[r.crop_health] !== undefined) counts[r.crop_health]++ })
+  //   return [
+  //     { label: 'Excellent', value: counts.excellent, key: 'excellent' },
+  //     { label: 'Good',      value: counts.good,      key: 'good'      },
+  //     { label: 'Fair',      value: counts.fair,       key: 'fair'      },
+  //     { label: 'Poor',      value: counts.poor,       key: 'poor'      },
+  //   ]
+  // }, [reports])
+  // const moistureChartData = useMemo(() => {
+  //   return [...reports].slice(0, 30).reverse().map(r => ({
+  //     date: r.report_date, moisture: Number(r.soil_moisture), field: r.field?.name || 'Unknown',
+  //   }))
+  // }, [reports])
 
   // ── Summary stats ─────────────────────────────────────────────────────────
   const pestCount  = reports.filter(r => r.pest_observed).length
@@ -128,56 +115,9 @@ export default function CoordinatorReportsPage() {
 
         {!loading && !error && reports.length > 0 && (
           <>
-            {/* ─── Charts row ─────────────────────────────────────────── */}
-            <div style={styles.chartsRow}>
+            {/* ─── Charts row (suspended) ────────────────────────────── */}
+            {/* Uncomment block below + recharts import + chart data above to re-enable */}
 
-              {/* Crop Health Distribution — Bar Chart */}
-              <div style={styles.chartCard}>
-                <h3 style={styles.chartTitle}>Crop Health Distribution</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={healthChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#4A6741' }} />
-                    <YAxis tick={{ fontSize: 11, fill: '#4A6741' }} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #C8E6C9', fontSize: '0.85rem' }}
-                    />
-                    <Bar dataKey="value" name="Reports" radius={[4, 4, 0, 0]}>
-                      {healthChartData.map(entry => (
-                        <Cell key={entry.key} fill={HEALTH_COLORS[entry.key]?.chart || '#4CAF50'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Soil Moisture Trend — Line Chart */}
-              <div style={styles.chartCard}>
-                <h3 style={styles.chartTitle}>Soil Moisture Trend (latest 30)</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={moistureChartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F5E9" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#4A6741' }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#4A6741' }} unit="%" />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #C8E6C9', fontSize: '0.85rem' }}
-                      formatter={(v) => [`${v}%`, 'Moisture']}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                    <Line
-                      type="monotone"
-                      dataKey="moisture"
-                      name="Soil Moisture"
-                      stroke="#2E7D32"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: '#2E7D32' }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-            </div>
 
             {/* ─── Filter bar ─────────────────────────────────────────── */}
             <div style={styles.filterBar}>

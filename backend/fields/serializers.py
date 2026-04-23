@@ -85,6 +85,16 @@ class FieldSerializer(serializers.ModelSerializer):
             'is_active',
             'created_at',
             'updated_at',
+            # Coordinator-set expected dates
+            'expected_planting_date',
+            'expected_emergence_date',
+            'expected_harvest_date',
+            'expected_ready_date',
+            # Agent-realized actual dates (read by all, written by agent via realized-dates action)
+            'realized_planting_date',
+            'realized_emergence_date',
+            'realized_harvest_date',
+            'realized_ready_date',
         ]
         read_only_fields = ['id', 'coordinator', 'created_at', 'updated_at']
         # id — assigned by the database
@@ -122,7 +132,7 @@ class FieldSerializer(serializers.ModelSerializer):
                 # will raise a validation error: "Invalid pk — object does not exist."
             )
 
-    def validate_size_in_acres(self, value):
+    def validate_size_in_acres(self, value):  # noqa: D401
         """
         Field-level validator for size_in_acres.
 
@@ -137,3 +147,25 @@ class FieldSerializer(serializers.ModelSerializer):
                 "Field size must be a positive number."
             )
         return value
+
+
+class AgentRealizedDatesSerializer(serializers.ModelSerializer):
+    """
+    Minimal serializer used exclusively by the `realized-dates` PATCH action.
+
+    Accepts only the 4 realized date fields so that an agent cannot accidentally
+    overwrite any coordinator-controlled data (name, location, expected dates, etc.)
+    through this endpoint.
+
+    All fields are optional (partial updates allowed) so that the agent can
+    submit just one date at a time if they choose.
+    """
+
+    class Meta:
+        model  = Field
+        fields = [
+            'realized_planting_date',
+            'realized_emergence_date',
+            'realized_harvest_date',
+            'realized_ready_date',
+        ]

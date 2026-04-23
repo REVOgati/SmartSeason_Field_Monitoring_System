@@ -2,7 +2,6 @@
 import { Link } from 'react-router-dom'
 import { getFields, createField, deleteField, patchField } from '../api/fieldsApi'
 import { getAgentPool, getMyTeam, assignAgent, dropAgent } from '../api/agentsApi'
-import { getFieldReports } from '../api/reportsApi'
 import Navbar      from '../components/Navbar'
 import StatCard    from '../components/StatCard'
 import PageLayout, { contentArea } from '../components/PageLayout'
@@ -60,6 +59,8 @@ export default function CoordinatorDashboard() {
 
   // -- Assign Agent modal state -----------------------------------------------
   const [assignTarget,    setAssignTarget]    = useState(null)  // fieldId or null
+
+  // ── Fetch all fields on mount
   const [poolAgents,      setPoolAgents]      = useState([])
   const [teamAgents,      setTeamAgents]      = useState([])
   const [agentsLoading,   setAgentsLoading]   = useState(false)
@@ -67,11 +68,7 @@ export default function CoordinatorDashboard() {
   const [assigningId,     setAssigningId]     = useState(null)
   const [droppingFieldId, setDroppingFieldId] = useState(null)
 
-  // -- Field detail panel state -----------------------------------------------
-  const [selectedField,   setSelectedField]   = useState(null)  // full field object or null
-  const [fieldReports,    setFieldReports]    = useState([])
-  const [reportsLoading,  setReportsLoading]  = useState(false)
-  const [reportsError,    setReportsError]    = useState(null)
+  // Field detail: navigate to /coordinator/field/:id
 
   // â”€â”€ Fetch all fields on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -98,38 +95,6 @@ export default function CoordinatorDashboard() {
   // Empty deps array â†’ runs once after the initial render.
   // We do NOT include `user` because coordinators cannot switch accounts
   // mid-session; a page reload would trigger a new mount anyway.
-
-  // ── Field detail panel handlers ───────────────────────────────────────────
-  /*
-    handleSelectField — opens the detail panel for a field.
-    Clicking the same field again toggles it closed.
-    Fetches reports for the selected field from GET /api/reports/?field=<id>
-  */
-  const handleSelectField = useCallback(async (field) => {
-    if (selectedField?.id === field.id) {
-      setSelectedField(null)
-      setFieldReports([])
-      return
-    }
-    setSelectedField(field)
-    setReportsLoading(true)
-    setReportsError(null)
-    setFieldReports([])
-    try {
-      const data = await getFieldReports(field.id)
-      setFieldReports(data.results ?? data)
-    } catch (err) {
-      setReportsError(err?.response?.data?.detail || 'Could not load reports.')
-    } finally {
-      setReportsLoading(false)
-    }
-  }, [selectedField])
-
-  function closeDetail() {
-    setSelectedField(null)
-    setFieldReports([])
-    setReportsError(null)
-  }
 
   // ── Add Field handler ─────────────────────────────────────────────────────
   const handleAddField = useCallback(async (e) => {
@@ -247,8 +212,6 @@ export default function CoordinatorDashboard() {
       }
       const updated = await patchField(assignTarget, { assigned_agent_id: agentPk })
       setFields(prev => prev.map(f => f.id === assignTarget ? updated : f))
-      // Keep detail panel in sync if this field is currently selected
-      if (selectedField?.id === assignTarget) setSelectedField(updated)
       closeAssignModal()
     } catch (err) {
       const body = err?.response?.data
@@ -282,10 +245,6 @@ export default function CoordinatorDashboard() {
       setFields(prev => prev.map(f =>
         f.assigned_agent?.id === agentPk ? { ...f, assigned_agent: null } : f
       ))
-      // Sync detail panel if the selected field had this agent
-      if (selectedField?.assigned_agent?.id === agentPk) {
-        setSelectedField(prev => ({ ...prev, assigned_agent: null }))
-      }
     } catch (err) {
       alert(err?.response?.data?.detail || 'Could not drop agent.')
     } finally {
@@ -349,22 +308,9 @@ export default function CoordinatorDashboard() {
                 onAssign={handleOpenAssign}
                 onDrop={handleDropAgent}
                 isDropping={droppingFieldId === field.id}
-                onSelect={handleSelectField}
-                isSelected={selectedField?.id === field.id}
               />
             ))}
           </div>
-        )}
-
-        {/* Field detail panel — shown inline below the grid when a field is selected */}
-        {selectedField && (
-          <FieldDetailPanel
-            field={selectedField}
-            reports={fieldReports}
-            reportsLoading={reportsLoading}
-            reportsError={reportsError}
-            onClose={closeDetail}
-          />
         )}
 
       </main>
@@ -496,7 +442,7 @@ export default function CoordinatorDashboard() {
     Assign Agent button — shown when assigned_agent is null
     Drop Agent button   — shown when an agent is assigned
 */
-function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping, onSelect, isSelected }) {
+function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }) {
   const badgeStyle = {
     ...styles.badge,
     backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
@@ -504,10 +450,8 @@ function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping, 
     borderColor:     field.is_active ? '#A5D6A7' : '#FFCC80',
   }
 
-  const cardStyle = {
-    ...styles.card,
-    ...(isSelected ? { borderColor: '#2E7D32', boxShadow: '0 0 0 2px #A5D6A7, 0 2px 12px rgba(27, 94, 32, 0.15)' } : {}),
-  }
+  const cardStyle = styles.card
+
 
   return (
     <div style={cardStyle}>
@@ -516,14 +460,9 @@ function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping, 
         <span style={badgeStyle}>{field.is_active ? 'Active' : 'Inactive'}</span>
       </div>
 
-      {/* Clickable field name — opens/closes the detail panel */}
-      <h3
-        style={{ ...styles.fieldName, cursor: 'pointer', textDecoration: isSelected ? 'underline' : 'none' }}
-        onClick={() => onSelect(field)}
-        title="Click to view reports"
-      >
+      <Link to={`/coordinator/field/${field.id}`} style={styles.fieldNameLink}>
         {field.name}
-      </h3>
+      </Link>
       <p style={styles.metaRow}>📍 {field.location}</p>
 
       {field.size_in_acres && (
@@ -587,222 +526,6 @@ const styles = {
   agentRow:        { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid #E8F5E9' },
   agentName:       { margin: 0, fontWeight: '600', fontSize: '0.9rem', color: '#1B2E1B' },
   agentEmail:      { margin: '2px 0 0', fontSize: '0.78rem', color: '#4A6741' },
+  fieldNameLink: { display: 'block', marginBottom: '0.75rem', fontSize: '1.05rem', fontWeight: '700', color: '#1B5E20', textDecoration: 'none' },
 }
 
-// ── FieldDetailPanel ──────────────────────────────────────────────────────────
-/*
-  Full-width panel rendered below the fields grid when a coordinator clicks a
-  field name. Shows:
-    • Field metadata (location, crop, size, status, agent)
-    • All monitoring reports submitted for that field, newest first
-
-  Health badge colour scheme mirrors AgentDashboard's ReportCard.
-*/
-const HEALTH_COLORS = {
-  excellent: { bg: '#E8F5E9', color: '#1B5E20', border: '#A5D6A7' },
-  good:      { bg: '#F1F8E9', color: '#33691E', border: '#C5E1A5' },
-  fair:      { bg: '#FFF3E0', color: '#E65100', border: '#FFCC80' },
-  poor:      { bg: '#FFEBEE', color: '#C62828', border: '#FFCDD2' },
-}
-
-function FieldDetailPanel({ field, reports, reportsLoading, reportsError, onClose }) {
-  return (
-    <div style={detailStyles.panel}>
-
-      {/* Panel header */}
-      <div style={detailStyles.panelHeader}>
-        <div>
-          <h2 style={detailStyles.panelTitle}>{field.name}</h2>
-          <p style={detailStyles.panelSub}>📍 {field.location} &nbsp;·&nbsp; 🌾 {field.crop_type}</p>
-        </div>
-        <button style={detailStyles.closeBtn} onClick={onClose} title="Close">✕</button>
-      </div>
-
-      {/* Field meta row */}
-      <div style={detailStyles.metaBar}>
-        {field.size_in_acres && (
-          <span style={detailStyles.metaChip}>📐 {Number(field.size_in_acres).toFixed(2)} acres</span>
-        )}
-        <span style={{
-          ...detailStyles.metaChip,
-          backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
-          color:           field.is_active ? '#2E7D32' : '#E65100',
-        }}>
-          {field.is_active ? '● Active' : '● Inactive'}
-        </span>
-        {field.assigned_agent ? (
-          <span style={detailStyles.metaChip}>
-            👤 {field.assigned_agent.full_name} ({field.assigned_agent.email})
-          </span>
-        ) : (
-          <span style={{...detailStyles.metaChip, color: '#9E9E9E'}}>👤 Unassigned</span>
-        )}
-      </div>
-
-      {/* Reports section */}
-      <h3 style={detailStyles.reportsTitle}>
-        Field Reports
-        <span style={detailStyles.reportsCount}>{reportsLoading ? '…' : reports.length}</span>
-      </h3>
-
-      {reportsLoading && <p style={{color: '#4A6741', fontSize: '0.9rem'}}>Loading reports…</p>}
-
-      {!reportsLoading && reportsError && (
-        <p style={{color: '#C62828', fontSize: '0.9rem'}}>{reportsError}</p>
-      )}
-
-      {!reportsLoading && !reportsError && reports.length === 0 && (
-        <p style={{color: '#9E9E9E', fontSize: '0.9rem'}}>No reports submitted for this field yet.</p>
-      )}
-
-      {!reportsLoading && !reportsError && reports.length > 0 && (
-        <div style={detailStyles.reportList}>
-          {reports.map(r => {
-            const hc = HEALTH_COLORS[r.crop_health] || HEALTH_COLORS.fair
-            return (
-              <div key={r.id} style={detailStyles.reportRow}>
-                <div style={detailStyles.reportLeft}>
-                  <span style={detailStyles.reportDate}>📅 {r.report_date}</span>
-                  <span style={{ fontSize: '0.8rem', color: '#4A6741' }}>
-                    by {r.agent?.full_name || 'Unknown'}
-                  </span>
-                </div>
-                <div style={detailStyles.reportMid}>
-                  <span style={{
-                    fontSize: '0.75rem', fontWeight: '700',
-                    padding: '0.2rem 0.6rem', borderRadius: '20px',
-                    backgroundColor: hc.bg, color: hc.color, border: `1px solid ${hc.border}`,
-                  }}>
-                    {r.crop_health.charAt(0).toUpperCase() + r.crop_health.slice(1)}
-                  </span>
-                  <span style={{fontSize: '0.8rem', color: '#4A6741'}}>
-                    💧 {r.soil_moisture}%
-                  </span>
-                  {r.pest_observed && (
-                    <span style={{fontSize: '0.8rem', color: '#C62828', fontWeight: '700'}}>
-                      ⚠️ Pest
-                    </span>
-                  )}
-                </div>
-                {r.notes && (
-                  <p style={detailStyles.reportNotes}>{r.notes}</p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-    </div>
-  )
-}
-
-const detailStyles = {
-  panel: {
-    marginTop: '2rem',
-    backgroundColor: '#FFFFFF',
-    border: '1.5px solid #2E7D32',
-    borderRadius: '14px',
-    padding: '1.5rem',
-    boxShadow: '0 4px 20px rgba(27, 94, 32, 0.12)',
-  },
-  panelHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '0.75rem',
-  },
-  panelTitle: {
-    margin: 0,
-    fontSize: '1.35rem',
-    fontWeight: '800',
-    color: '#1B5E20',
-  },
-  panelSub: {
-    margin: '0.25rem 0 0',
-    fontSize: '0.88rem',
-    color: '#4A6741',
-  },
-  closeBtn: {
-    background: 'none',
-    border: 'none',
-    fontSize: '1.1rem',
-    cursor: 'pointer',
-    color: '#9E9E9E',
-    padding: '0.25rem 0.5rem',
-    borderRadius: '4px',
-  },
-  metaBar: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    marginBottom: '1.5rem',
-  },
-  metaChip: {
-    fontSize: '0.83rem',
-    padding: '0.3rem 0.75rem',
-    borderRadius: '20px',
-    backgroundColor: '#F1F8E9',
-    color: '#2E7D32',
-    border: '1px solid #C8E6C9',
-    fontWeight: '500',
-  },
-  reportsTitle: {
-    margin: '0 0 0.85rem',
-    fontSize: '1rem',
-    fontWeight: '700',
-    color: '#1B5E20',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  reportsCount: {
-    backgroundColor: '#E8F5E9',
-    color: '#2E7D32',
-    borderRadius: '12px',
-    padding: '0.1rem 0.55rem',
-    fontSize: '0.82rem',
-    fontWeight: '700',
-  },
-  reportList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.6rem',
-  },
-  reportRow: {
-    backgroundColor: '#F9FBF9',
-    border: '1px solid #E8F5E9',
-    borderRadius: '8px',
-    padding: '0.75rem 1rem',
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.75rem',
-    alignItems: 'center',
-  },
-  reportLeft: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.15rem',
-    minWidth: '130px',
-  },
-  reportDate: {
-    fontWeight: '600',
-    fontSize: '0.83rem',
-    color: '#1B2E1B',
-  },
-  reportMid: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.65rem',
-    flex: 1,
-  },
-  reportNotes: {
-    margin: 0,
-    width: '100%',
-    fontSize: '0.8rem',
-    color: '#5A7A5A',
-    borderLeft: '3px solid #A5D6A7',
-    paddingLeft: '0.65rem',
-    lineHeight: 1.5,
-  },
-}

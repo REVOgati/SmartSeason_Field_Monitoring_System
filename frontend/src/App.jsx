@@ -4,7 +4,9 @@ import RegisterPage from './pages/RegisterPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import CoordinatorDashboard from './pages/CoordinatorDashboard'
 import CoordinatorReportsPage from './pages/CoordinatorReportsPage'
+import CoordinatorFieldDetailPage from './pages/CoordinatorFieldDetailPage'
 import AgentDashboard from './pages/AgentDashboard'
+import AgentFieldDetailPage from './pages/AgentFieldDetailPage'
 import SubmitReportPage from './pages/SubmitReportPage'
 
 /*
@@ -47,6 +49,15 @@ export default function App() {
       />
 
       <Route
+        path="/coordinator/field/:id"
+        element={
+          <ProtectedRoute requiredRole="coordinator">
+            <CoordinatorFieldDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/agent"
         element={
           <ProtectedRoute requiredRole="field_agent">
@@ -60,6 +71,15 @@ export default function App() {
         element={
           <ProtectedRoute requiredRole="field_agent">
             <SubmitReportPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agent/field/:id"
+        element={
+          <ProtectedRoute requiredRole="field_agent">
+            <AgentFieldDetailPage />
           </ProtectedRoute>
         }
       />

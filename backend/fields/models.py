@@ -90,6 +90,46 @@ class Field(models.Model):
         # auto_now: updated every time the record is saved, whether on creation or edit.
     )
 
+    # -------------------------------------------------------------------------
+    # Crop Timeline — set by coordinator (planned/expected dates)
+    # -------------------------------------------------------------------------
+    expected_planting_date = models.DateField(
+        null=True, blank=True, default=None,
+        # When coordinator plans to have the crop planted
+    )
+    expected_emergence_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Expected date for crop emergence after planting
+    )
+    expected_harvest_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Expected date coordinator targets for harvest
+    )
+    expected_ready_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Expected date the crop will be market-ready
+    )
+
+    # -------------------------------------------------------------------------
+    # Crop Timeline — filled in by field agent (actual/realized dates)
+    # -------------------------------------------------------------------------
+    realized_planting_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Actual date the crop was planted, recorded by the field agent
+    )
+    realized_emergence_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Actual emergence date observed and recorded by the field agent
+    )
+    realized_harvest_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Actual harvest date recorded by the field agent
+    )
+    realized_ready_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Actual market-ready date recorded by the field agent
+    )
+
     class Meta:
         verbose_name        = 'Field'
         verbose_name_plural = 'Fields'
