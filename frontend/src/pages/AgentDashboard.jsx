@@ -191,7 +191,7 @@ function ReportCard({ report }) {
 */
 function AssignedFieldChip({ field }) {
   return (
-    <Link to={`/agent/field/${field.id}`} style={styles.fieldChip}>
+    <div style={styles.fieldChip}>
       <div style={styles.chipTop}>
         <span style={styles.chipCrop}>{field.crop_type}</span>
         <span style={{
@@ -206,7 +206,8 @@ function AssignedFieldChip({ field }) {
       </div>
       <p style={styles.chipName}>{field.name}</p>
       <p style={styles.chipMeta}>📍 {field.location}</p>
-    </Link>
+      <Link to={`/agent/field/${field.id}`} style={styles.viewChipBtn}>View Field →</Link>
+    </div>
   )
 }
 
@@ -268,6 +269,17 @@ const styles = {
     margin: 0,
     fontSize: '0.8rem',
     color: '#4A6741',
+  },
+  viewChipBtn: {
+    display: 'inline-block',
+    marginTop: '0.6rem',
+    padding: '0.3rem 0.75rem',
+    backgroundColor: '#2E7D32',
+    color: '#FFFFFF',
+    borderRadius: '6px',
+    textDecoration: 'none',
+    fontSize: '0.78rem',
+    fontWeight: '600',
   },
   list: {
     display: 'flex',

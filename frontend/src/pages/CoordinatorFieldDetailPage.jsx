@@ -6,6 +6,7 @@ import { getFieldReports } from '../api/reportsApi'
 import Navbar      from '../components/Navbar'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import { sharedStyles as s } from '../components/sharedStyles'
+import DateInput   from '../components/DateInput'
 
 /*
   CoordinatorFieldDetailPage — /coordinator/field/:id
@@ -329,38 +330,34 @@ export default function CoordinatorFieldDetailPage() {
                 <div style={styles.datesGrid}>
                   <div>
                     <label style={s.label}>Expected Planting Date</label>
-                    <input
+                    <DateInput
                       style={s.input}
-                      type="date"
                       value={datesForm.expected_planting_date}
                       onChange={e => setDatesForm(p => ({ ...p, expected_planting_date: e.target.value }))}
                     />
                   </div>
                   <div>
                     <label style={s.label}>Expected Emergence Date</label>
-                    <input
+                    <DateInput
                       style={s.input}
-                      type="date"
                       value={datesForm.expected_emergence_date}
                       onChange={e => setDatesForm(p => ({ ...p, expected_emergence_date: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <label style={s.label}>Expected Harvest Date</label>
-                    <input
+                    <label style={s.label}>Expected Ready Date</label>
+                    <DateInput
                       style={s.input}
-                      type="date"
-                      value={datesForm.expected_harvest_date}
-                      onChange={e => setDatesForm(p => ({ ...p, expected_harvest_date: e.target.value }))}
+                      value={datesForm.expected_ready_date}
+                      onChange={e => setDatesForm(p => ({ ...p, expected_ready_date: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <label style={s.label}>Expected Ready Date</label>
-                    <input
+                    <label style={s.label}>Expected Harvest Date</label>
+                    <DateInput
                       style={s.input}
-                      type="date"
-                      value={datesForm.expected_ready_date}
-                      onChange={e => setDatesForm(p => ({ ...p, expected_ready_date: e.target.value }))}
+                      value={datesForm.expected_harvest_date}
+                      onChange={e => setDatesForm(p => ({ ...p, expected_harvest_date: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -486,8 +483,8 @@ export default function CoordinatorFieldDetailPage() {
                   <tbody>
                     <DateRow label="Planting"  expected={field.expected_planting_date}  realized={field.realized_planting_date} />
                     <DateRow label="Emergence" expected={field.expected_emergence_date} realized={field.realized_emergence_date} />
-                    <DateRow label="Harvest"   expected={field.expected_harvest_date}   realized={field.realized_harvest_date} />
                     <DateRow label="Ready"     expected={field.expected_ready_date}     realized={field.realized_ready_date} />
+                    <DateRow label="Harvest"   expected={field.expected_harvest_date}   realized={field.realized_harvest_date} />
                   </tbody>
                 </table>
               </section>

@@ -460,9 +460,7 @@ function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }
         <span style={badgeStyle}>{field.is_active ? 'Active' : 'Inactive'}</span>
       </div>
 
-      <Link to={`/coordinator/field/${field.id}`} style={styles.fieldNameLink}>
-        {field.name}
-      </Link>
+      <h3 style={styles.fieldName}>{field.name}</h3>
       <p style={styles.metaRow}>📍 {field.location}</p>
 
       {field.size_in_acres && (
@@ -474,6 +472,7 @@ function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }
       </p>
 
       <div style={styles.cardFooter}>
+        <Link to={`/coordinator/field/${field.id}`} style={styles.viewBtn}>View</Link>
         {!field.assigned_agent && (
           <button
             style={styles.assignBtn}
@@ -519,6 +518,7 @@ const styles = {
   fieldName:    { margin: '0 0 0.75rem', fontSize: '1.05rem', fontWeight: '700', color: '#1B2E1B' },
   metaRow:      { margin: '0.3rem 0', fontSize: '0.85rem', color: '#4A6741' },
   cardFooter:      { marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' },
+  viewBtn:         { padding: '0.35rem 0.75rem', backgroundColor: '#2E7D32', color: '#FFFFFF', borderRadius: '6px', textDecoration: 'none', fontSize: '0.8rem', fontWeight: '600' },
   deleteBtn:       { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#C62828', border: '1.5px solid #FFCDD2', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
   assignBtn:       { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#1565C0', border: '1.5px solid #90CAF9', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },
   dropBtn:         { padding: '0.35rem 0.9rem', backgroundColor: 'transparent', color: '#E65100', border: '1.5px solid #FFCC80', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' },

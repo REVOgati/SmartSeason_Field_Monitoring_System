@@ -5,6 +5,7 @@ import { getFieldReports } from '../api/reportsApi'
 import Navbar      from '../components/Navbar'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import { sharedStyles as s } from '../components/sharedStyles'
+import DateInput   from '../components/DateInput'
 
 /*
   AgentFieldDetailPage — /agent/field/:id
@@ -194,8 +195,8 @@ export default function AgentFieldDetailPage() {
                     {[
                       { label: 'Planting',  expKey: 'expected_planting_date',  realKey: 'realized_planting_date' },
                       { label: 'Emergence', expKey: 'expected_emergence_date', realKey: 'realized_emergence_date' },
-                      { label: 'Harvest',   expKey: 'expected_harvest_date',   realKey: 'realized_harvest_date' },
                       { label: 'Ready',     expKey: 'expected_ready_date',     realKey: 'realized_ready_date' },
+                      { label: 'Harvest',   expKey: 'expected_harvest_date',   realKey: 'realized_harvest_date' },
                     ].map(row => (
                       <tr key={row.label}>
                         <td style={styles.tdLabel}>{row.label}</td>
@@ -205,8 +206,7 @@ export default function AgentFieldDetailPage() {
                             : <span style={styles.noDate}>—</span>}
                         </td>
                         <td style={styles.td}>
-                          <input
-                            type="date"
+                          <DateInput
                             value={datesForm[row.realKey]}
                             onChange={e => setDatesForm(p => ({ ...p, [row.realKey]: e.target.value }))}
                             style={styles.dateInput}

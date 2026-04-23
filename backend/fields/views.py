@@ -160,10 +160,9 @@ class FieldViewSet(viewsets.ModelViewSet):
         is not the assigned agent for this field — preventing agents from reading
         details of fields belonging to other agents.
         """
-        field = self.get_object.__func__(self)  # bypass coordinator queryset
-        # We can't use self.get_object() directly because get_queryset() filters
-        # by coordinator=request.user, which would always 404 for agents.
-        # Instead, look up by pk from the full queryset.
+        # We can't use self.get_object() because get_queryset() filters by
+        # coordinator=request.user, which would always 404 for agents.
+        # Look up by pk from the unrestricted queryset instead.
         try:
             field = Field.objects.select_related('coordinator', 'assigned_agent').get(pk=pk)
         except Field.DoesNotExist:
