@@ -1,28 +1,27 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import AuthProvider from './context/AuthContext'
 import './index.css'
 import App from './App.jsx'
 
 /*
-  Why BrowserRouter here (in main.jsx) instead of inside App.jsx?
+  Provider order matters: BrowserRouter must wrap AuthProvider because
+  AuthProvider (or components it renders) may call useNavigate() internally.
+  useNavigate() requires a Router ancestor — so Router goes on the outside.
 
-  BrowserRouter provides the routing context — every component that needs
-  to read the current URL, navigate, or render a <Link> must be a descendant
-  of a Router. By wrapping at the very root we guarantee that ALL components
-  in the tree have access to the router context without exception.
-
-  If we put BrowserRouter inside App.jsx it would still work, but placing it
-  here makes the intent explicit: the WHOLE application is a routed app.
-
-  StrictMode stays as the outermost wrapper — it only affects development
-  behaviour (double-invoking effects to catch bugs) and has zero runtime cost
-  in production.
+  Reading the tree from outside in:
+  StrictMode       → dev-only double-invocation checks (no runtime effect)
+  BrowserRouter    → provides URL context (window.location + history API)
+  AuthProvider     → provides auth state (user, login, logout, isAuthenticated)
+  App              → the actual route tree
 */
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )

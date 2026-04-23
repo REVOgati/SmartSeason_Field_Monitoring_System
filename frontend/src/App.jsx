@@ -1,4 +1,6 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import LoginPage from './pages/LoginPage'
+import ProtectedRoute from './routes/ProtectedRoute'
 
 /*
   App.jsx — Root route tree.
@@ -6,38 +8,72 @@ import { Routes, Route } from 'react-router-dom'
   All page-level <Route> entries live here. App.jsx's only responsibility
   is declaring which component renders at which URL path. No logic, no state.
 
-  Routes and pages will be added session by session:
-    Session 15 → LoginPage  at /login
-    Session 16 → Coordinator dashboard at /dashboard
-    Session 17 → Agent dashboard at /agent
-    etc.
+  Current routes (Session 15):
+    /             → redirects to /login
+    /login        → LoginPage (public)
+    /dashboard    → CoordinatorDashboard (protected, coordinator only) — placeholder
+    /agent        → AgentDashboard (protected, field_agent only) — placeholder
+    *             → 404 fallback
 
   Why <Routes> here and <BrowserRouter> in main.jsx?
   BrowserRouter supplies the URL context (window.location).
   Routes reads that context and matches the current URL to its children.
   They are intentionally separate — context provider vs. consumer.
+
+  Why <Navigate> for / instead of a welcome page?
+  The system has no public landing page — it is an internal dashboard tool.
+  Unauthenticated users go to /login; authenticated users are redirected
+  by ProtectedRoute to their correct dashboard.
 */
 
-function App() {
+// Placeholder dashboard components — full pages built in Session 16-17
+function CoordinatorDashboard() {
+  return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h2>Coordinator Dashboard</h2><p>Coming in Session 16.</p></div>
+}
+function AgentDashboard() {
+  return <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h2>Agent Dashboard</h2><p>Coming in Session 17.</p></div>
+}
+
+export default function App() {
   return (
     <Routes>
-      {/*
-        Routes will be added here from Session 15 onwards.
-        Each <Route> maps a URL path to a page component, e.g.:
-          <Route path="/login"     element={<LoginPage />} />
-          <Route path="/dashboard" element={<CoordinatorDashboard />} />
-      */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Redirect root to /login. Once logged in, LoginPage redirects to the
+          correct dashboard, so authenticated users effectively skip /login. */}
+
+      <Route path="/login" element={<LoginPage />} />
+      {/* Public route — no ProtectedRoute wrapper needed. */}
+
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute requiredRole="coordinator">
+            <CoordinatorDashboard />
+          </ProtectedRoute>
+        }
+      />
+      {/* Coordinator-only. ProtectedRoute redirects agents to /agent
+          and unauthenticated users to /login. */}
+
+      <Route
+        path="/agent"
+        element={
+          <ProtectedRoute requiredRole="field_agent">
+            <AgentDashboard />
+          </ProtectedRoute>
+        }
+      />
+      {/* Field-agent-only. Mirrors the coordinator pattern above. */}
+
       <Route
         path="*"
         element={
           <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-            <h1>SmartSeason</h1>
-            <p>Frontend scaffold ready. Pages coming in Session 15.</p>
+            <h2>404 — Page not found</h2>
+            <a href="/login">Go to login</a>
           </div>
         }
       />
     </Routes>
   )
 }
-
-export default App
