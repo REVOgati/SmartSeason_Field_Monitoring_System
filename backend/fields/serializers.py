@@ -86,11 +86,13 @@ class FieldSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             # Coordinator-set expected dates
+            'expected_farm_prep_date',
             'expected_planting_date',
             'expected_emergence_date',
             'expected_harvest_date',
             'expected_ready_date',
             # Agent-realized actual dates (read by all, written by agent via realized-dates action)
+            'realized_farm_prep_date',
             'realized_planting_date',
             'realized_emergence_date',
             'realized_harvest_date',
@@ -164,6 +166,7 @@ class AgentRealizedDatesSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Field
         fields = [
+            'realized_farm_prep_date',
             'realized_planting_date',
             'realized_emergence_date',
             'realized_harvest_date',

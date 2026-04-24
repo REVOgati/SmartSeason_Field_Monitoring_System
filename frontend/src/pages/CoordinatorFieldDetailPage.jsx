@@ -81,6 +81,7 @@ export default function CoordinatorFieldDetailPage() {
           is_active:     fieldData.is_active,
         })
         setDatesForm({
+          expected_farm_prep_date:  fieldData.expected_farm_prep_date  ?? '',
           expected_planting_date:   fieldData.expected_planting_date   ?? '',
           expected_emergence_date:  fieldData.expected_emergence_date  ?? '',
           expected_harvest_date:    fieldData.expected_harvest_date    ?? '',
@@ -328,6 +329,14 @@ export default function CoordinatorFieldDetailPage() {
               {datesSuccess && <div style={styles.successBanner}>Dates saved!</div>}
               <form onSubmit={handleSaveDates} style={s.form}>
                 <div style={styles.datesGrid}>
+                  <div>
+                    <label style={s.label}>Expected Farm Prep Date</label>
+                    <DateInput
+                      style={s.input}
+                      value={datesForm.expected_farm_prep_date}
+                      onChange={e => setDatesForm(p => ({ ...p, expected_farm_prep_date: e.target.value }))}
+                    />
+                  </div>
                   <div>
                     <label style={s.label}>Expected Planting Date</label>
                     <DateInput

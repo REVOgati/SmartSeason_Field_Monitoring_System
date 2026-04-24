@@ -93,6 +93,10 @@ class Field(models.Model):
     # -------------------------------------------------------------------------
     # Crop Timeline — set by coordinator (planned/expected dates)
     # -------------------------------------------------------------------------
+    expected_farm_prep_date = models.DateField(
+        null=True, blank=True, default=None,
+        # When coordinator plans for farm preparation to begin (first milestone)
+    )
     expected_planting_date = models.DateField(
         null=True, blank=True, default=None,
         # When coordinator plans to have the crop planted
@@ -113,6 +117,10 @@ class Field(models.Model):
     # -------------------------------------------------------------------------
     # Crop Timeline — filled in by field agent (actual/realized dates)
     # -------------------------------------------------------------------------
+    realized_farm_prep_date = models.DateField(
+        null=True, blank=True, default=None,
+        # Actual date farm preparation was completed, recorded by the field agent
+    )
     realized_planting_date = models.DateField(
         null=True, blank=True, default=None,
         # Actual date the crop was planted, recorded by the field agent

@@ -57,6 +57,7 @@ export default function AgentFieldDetailPage() {
         ])
         setField(fieldData)
         setDatesForm({
+          realized_farm_prep_date:  fieldData.realized_farm_prep_date  ?? '',
           realized_planting_date:   fieldData.realized_planting_date   ?? '',
           realized_emergence_date:  fieldData.realized_emergence_date  ?? '',
           realized_harvest_date:    fieldData.realized_harvest_date    ?? '',
@@ -88,6 +89,7 @@ export default function AgentFieldDetailPage() {
       setField(updated)
       // Keep form in sync with returned data
       setDatesForm({
+        realized_farm_prep_date:  updated.realized_farm_prep_date  ?? '',
         realized_planting_date:   updated.realized_planting_date   ?? '',
         realized_emergence_date:  updated.realized_emergence_date  ?? '',
         realized_harvest_date:    updated.realized_harvest_date    ?? '',
@@ -193,6 +195,7 @@ export default function AgentFieldDetailPage() {
                   </thead>
                   <tbody>
                     {[
+                      { label: 'Farm Prep',  expKey: 'expected_farm_prep_date',  realKey: 'realized_farm_prep_date' },
                       { label: 'Planting',  expKey: 'expected_planting_date',  realKey: 'realized_planting_date' },
                       { label: 'Emergence', expKey: 'expected_emergence_date', realKey: 'realized_emergence_date' },
                       { label: 'Ready',     expKey: 'expected_ready_date',     realKey: 'realized_ready_date' },
