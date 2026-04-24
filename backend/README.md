@@ -8,7 +8,7 @@ Django 5.2 + Django REST Framework API powering the SmartSeason Field Monitoring
 
 | Component | Version |
 |---|---|
-| Python | 3.x |
+| Python | 3.11 |
 | Django | 5.2 |
 | Django REST Framework | 3.17 |
 | SimpleJWT | 5.5 |
@@ -17,6 +17,9 @@ Django 5.2 + Django REST Framework API powering the SmartSeason Field Monitoring
 | PostgreSQL | via psycopg2-binary |
 | Pillow | 12.2 (image uploads) |
 | python-decouple | 3.8 (env config) |
+| gunicorn | 25.3 (production WSGI server) |
+| whitenoise | 6.12 (static file serving) |
+| dj-database-url | 3.1.2 (DATABASE_URL parsing) |
 
 ---
 
@@ -34,7 +37,10 @@ backend/
 │   ├── permissions.py    # IsCoordinator, IsFieldAgent, IsFieldOwner
 │   ├── signals.py        # Auto set is_active=True when is_verified=True
 │   ├── urls.py           # /api/auth/ routes
-│   └── agent_urls.py     # /api/agents/ routes
+│   ├── agent_urls.py     # /api/agents/ routes
+│   └── management/
+│       └── commands/
+│           └── ensure_superuser.py  # Idempotent superuser creation for Heroku release phase
 ├── fields/               # Farm field records and crop timeline
 │   ├── models.py         # Field model with 10 crop timeline date fields,
 │   │                     # current_stage CharField, and field_status property
@@ -46,6 +52,8 @@ backend/
 │   ├── serializers.py
 │   ├── views.py          # FieldReportViewSet (scoped to user role)
 │   └── urls.py
+├── Procfile              # Heroku process declarations (release + web)
+├── runtime.txt           # Pins Python 3.11 for Heroku (deprecated, use .python-version)
 ├── manage.py
 ├── requirements.txt
 └── .env                  # Not committed — see Environment Variables section
@@ -252,3 +260,78 @@ Django Admin is at `http://localhost:8000/admin/`.
 - Coordinator A **cannot** see Coordinator B's fields — `get_queryset()` filters by `coordinator=request.user` on every request.
 - An agent's `agent-detail` endpoint returns 403 if the requesting agent is not the assigned agent for that field.
 - Reports are scoped at query level: agents see only their own submissions; coordinators see only reports for their own fields.
+
+---
+
+## Production Deployment (Heroku + Supabase)
+
+### Infrastructure
+
+| Service | Provider | URL |
+|---|---|---|
+| Backend API | Heroku Eco dyno | https://smartseason-api-8ebd1870ef49.herokuapp.com/ |
+| Database | Supabase PostgreSQL | Session pooler: `aws-0-eu-west-1.pooler.supabase.com:5432` |
+
+### Procfile
+
+The `Procfile` in `backend/` declares two process types:
+
+```
+release: python manage.py migrate && python manage.py ensure_superuser
+web: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+```
+
+- **`release`** runs after every build, before traffic is served. It applies pending migrations and creates the superuser if none exists yet.
+- **`web`** starts the Gunicorn WSGI server on the port Heroku assigns.
+
+### `ensure_superuser` Management Command
+
+Located at `users/management/commands/ensure_superuser.py`. Creates a superuser from environment variables only if no superuser exists yet. Safe to run on every deploy — it exits immediately if a superuser already exists.
+
+Required environment variables for this command:
+```
+DJANGO_SUPERUSER_EMAIL
+DJANGO_SUPERUSER_PASSWORD
+DJANGO_SUPERUSER_FULLNAME
+```
+
+### Heroku Config Vars (full list)
+
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | Django secret key (do not use the `django-insecure-` default) |
+| `DEBUG` | `False` |
+| `DATABASE_URL` | Supabase session pooler URI with `?sslmode=require` |
+| `FRONTEND_URL` | Vercel frontend URL (added to `CORS_ALLOWED_ORIGINS`) |
+| `HEROKU_APP_NAME` | Heroku app name (optional reference) |
+| `DJANGO_SUPERUSER_EMAIL` | Admin login email |
+| `DJANGO_SUPERUSER_PASSWORD` | Admin login password |
+| `DJANGO_SUPERUSER_FULLNAME` | Admin display name |
+
+### DATABASE_URL Format
+
+Use the Supabase **session-mode pooler** URI (not the direct connection). Heroku Eco dynos connect via IPv4 only; the direct Supabase host resolves to IPv6 and is unreachable.
+
+```
+postgresql://postgres.<project-ref>:<password>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+If the password contains special characters (e.g. `@`), URL-encode them: `@` → `%40`.
+
+### Static Files
+
+WhiteNoise serves compressed static files from `staticfiles/` (built by `collectstatic` during the Heroku build). No CDN or S3 is needed for admin panel assets.
+
+### Deploying Code Changes
+
+Because this is a monorepo (`backend/` and `frontend/` share one GitHub repo), `git push` alone does not update Heroku. Use git subtree to push only the `backend/` directory:
+
+```bash
+git push origin main                           # update GitHub
+git subtree push --prefix backend heroku main  # deploy to Heroku
+```
+
+To set up the Heroku remote on a new machine:
+```bash
+heroku git:remote -a smartseason-api
+```

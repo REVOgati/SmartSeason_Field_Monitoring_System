@@ -196,7 +196,69 @@ A plain JS object exporting common inline style tokens — input, label, form, s
 
 ## Environment
 
-The API base URL is set in `axiosInstance.js`. For local development the backend runs on `http://localhost:8000` (Django dev server) and the frontend on `http://localhost:5173` (Vite dev server). CORS is configured in the backend to allow this origin.
+The API base URL is controlled by the `VITE_API_URL` environment variable:
+
+```js
+baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/'
+```
+
+- **Local development** — `VITE_API_URL` is not set; the fallback `http://127.0.0.1:8000/api/` is used automatically. No `.env` file needed for local development.
+- **Production (Vercel)** — `VITE_API_URL` is set to the Heroku backend URL in Vercel's Environment Variables dashboard.
+
+CORS is configured in the Django backend to allow both `http://localhost:5173` (dev) and the production Vercel URL.
+
+---
+
+## Production Deployment (Vercel)
+
+### Live URL
+
+https://smart-season-field-monitoring-system.vercel.app
+
+### Vercel Configuration
+
+`vercel.json` in the `frontend/` root configures SPA routing so that direct URL access to any route (e.g. `/coordinator/field/3`) does not return a 404:
+
+```json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+```
+
+Without this, refreshing the browser on any non-root route would return a Vercel 404 because there is no physical file at that path.
+
+### Vercel Environment Variables
+
+| Variable | Value |
+|---|---|
+| `VITE_API_URL` | `https://smartseason-api-8ebd1870ef49.herokuapp.com/api/` |
+
+Set this in Vercel dashboard → Project → Settings → Environment Variables for all environments (Production, Preview, Development).
+
+### Vercel Project Settings
+
+| Setting | Value |
+|---|---|
+| Root directory | `frontend` |
+| Framework preset | Vite |
+| Build command | `npm run build` (auto-detected) |
+| Output directory | `dist` (auto-detected) |
+
+Vercel watches the `main` branch on GitHub and redeploys automatically on every `git push origin main`.
+
+### Design Decisions
+
+**No CSS framework — inline styles only**
+All styles are written as inline JS objects. This avoids build-time CSS processing, eliminates class name collisions, and keeps component styles co-located with their markup. `sharedStyles.js` exports common tokens (colours, input styles, label styles) so design consistency is maintained without a framework.
+
+**No global state library**
+`AuthContext` (React Context + `useReducer`) handles the only piece of truly global state: the authenticated user and tokens. All other state is local to each page component. This keeps the architecture simple and avoids unnecessary re-renders.
+
+**Axios interceptors for transparent token refresh**
+Rather than checking token expiry in every component, the response interceptor in `axiosInstance.js` catches 401 responses, refreshes the token silently, and retries the original request. Components are completely unaware that token refresh exists.
+
+**`computeFieldStatus` runs on the frontend**
+Field status is computed both in the Django model (`@property`) and mirrored in `src/utils/fieldStatus.js`. The frontend recomputes it from the field data already in memory — no extra API call needed to get the status badge. The backend version ensures the status is also correct when accessed via the API directly.
 
 ---
 

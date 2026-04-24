@@ -102,12 +102,14 @@ Coordinators can browse, filter, and review all reports across their fields from
 |---|---|
 | Backend API | Django 5.2 + Django REST Framework |
 | Authentication | JWT (SimpleJWT) — access + refresh token pair |
-| Database | PostgreSQL |
-| Image storage | Pillow (local, via Django's media file handling) |
+| Database | PostgreSQL (Supabase in production, local PostgreSQL in development) |
+| Image storage | Pillow (local, via Django's media file handling) - Media is not part of MVP but skeleton is included for future versions |
 | Frontend | React 19 + Vite 8 |
 | Routing | React Router DOM 7 |
 | HTTP client | Axios with automatic token refresh |
 | Styling | Inline JS styles — no CSS framework |
+| Backend hosting | Heroku (Eco dyno) |
+| Frontend hosting | Vercel |
 
 ---
 
@@ -132,7 +134,7 @@ PostgreSQL Database
 2. **Every subsequent request** — the React app attaches the access token in the `Authorization` header. Django validates the token and returns the requested data.
 3. **Token expiry** — when the access token expires, the React app automatically requests a new one using the refresh token, without any interruption to the user.
 4. **Role-based routing** — the role field inside the JWT (coordinator or field_agent) tells the React app which dashboard and pages to show. The backend independently enforces the same role rules on every API request, so the frontend and backend permissions are never out of sync.
-5. **CORS** — Django is configured to accept requests from `http://localhost:5173` (the Vite dev server) so there are no cross-origin errors during development.
+5. **CORS** — Django is configured to accept requests from `http://localhost:5173` (the Vite dev server) and the production Vercel URL so there are no cross-origin errors in either environment.
 
 ---
 
@@ -165,12 +167,12 @@ For detailed technical information:
 
 ---
 
-## Quick Start
+## Quick Start (Local Development)
 
 ### Prerequisites
-- Python 3.x
+- Python 3.11+
 - Node.js 18+
-- PostgreSQL
+- PostgreSQL (local instance)
 
 ### Backend
 ```bash
@@ -192,6 +194,82 @@ npm run dev
 ```
 
 Open `http://localhost:5173` in your browser. The backend must be running at `http://localhost:8000`.
+
+---
+
+## Production Deployment
+
+The system is deployed across three services:
+
+| Service | Provider | URL |
+|---|---|---|
+| Frontend | Vercel | https://smart-season-field-monitoring-system.vercel.app |
+| Backend API | Heroku (Eco dyno) | https://smartseason-api-8ebd1870ef49.herokuapp.com/api/ |
+| Django Admin | Heroku | https://smartseason-api-8ebd1870ef49.herokuapp.com/admin/ |
+| Database | Supabase (PostgreSQL) | Supabase project dashboard |
+
+### Architecture
+
+```
+Browser (Vercel — React SPA)
+        │
+        │  HTTPS requests with JWT bearer token
+        │  VITE_API_URL = https://smartseason-api-8ebd1870ef49.herokuapp.com/api/
+        ▼
+Heroku Eco Dyno (Gunicorn + Django)
+        │
+        │  SSL connection (port 5432, session pooler)
+        ▼
+Supabase PostgreSQL
+```
+
+### Design Decisions
+
+**Monorepo with git subtree for Heroku**
+The repository keeps `backend/` and `frontend/` together in one GitHub repo. Heroku requires the app to be at the repository root, so a `git subtree push --prefix backend heroku main` is used to push only the `backend/` folder to Heroku on each deploy. This keeps the codebase in one place without needing a separate repo.
+
+**Supabase Session Pooler instead of Direct Connection**
+Heroku Eco dynos use IPv4 for outbound connections. Supabase's direct database connection resolves to an IPv6 address, which Heroku cannot reach. The Supabase **session-mode pooler** (`aws-0-eu-west-1.pooler.supabase.com:5432`) resolves to IPv4 and is fully compatible with Django's connection behaviour (persistent connections, SET statements, prepared statements).
+
+**WhiteNoise for static files**
+Django's built-in static file serving is disabled in production. WhiteNoise serves compressed static files (gzip + brotli) directly from the `staticfiles/` directory built by `collectstatic`. This avoids the need for a separate CDN or S3 bucket for admin panel assets.
+
+**Idempotent superuser via `ensure_superuser` management command**
+The Procfile `release` phase runs `python manage.py migrate && python manage.py ensure_superuser` on every deploy. `ensure_superuser` creates the admin account from environment variables only if no superuser exists yet — safe to run repeatedly, no duplicates created.
+
+**Environment variable isolation**
+All secrets (secret key, database password, superuser credentials) are stored only in Heroku Config Vars and the local `.env` file. The `.env` file is in `.gitignore` and never committed. `settings.py` contains no hardcoded secrets.
+
+### Deploying Code Changes
+
+After committing your changes:
+
+```bash
+git push origin main                           # updates GitHub + triggers Vercel redeploy
+git subtree push --prefix backend heroku main  # deploys backend/ to Heroku
+```
+
+Vercel watches the `frontend/` folder on the `main` branch and redeploys automatically on every push to GitHub.
+
+### Heroku Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `SECRET_KEY` | Django secret key |
+| `DEBUG` | `False` in production |
+| `DATABASE_URL` | Supabase session pooler connection string |
+| `FRONTEND_URL` | Vercel frontend URL (for CORS) |
+| `HEROKU_APP_NAME` | App name (optional, kept for reference) |
+| `DJANGO_SUPERUSER_EMAIL` | Admin account email |
+| `DJANGO_SUPERUSER_PASSWORD` | Admin account password |
+| `DJANGO_SUPERUSER_FULLNAME` | Admin display name |
+
+### Assumptions
+
+- **One coordinator per agent** — a field agent belongs to at most one coordinator at a time. This keeps the data model simple and access rules unambiguous. If multi-coordinator support is ever needed, the `coordinator` FK on `User` would need to become a many-to-many.
+- **Verification is manual** — account approval is done by the superuser through Django Admin. There is no self-service email verification flow. This is intentional for a controlled agricultural operations environment where all staff are known in advance.
+- **No file storage service** — uploaded report photos are stored on the local filesystem via Django's `MEDIA_ROOT`. In production on Heroku, the dyno filesystem is ephemeral and photos will be lost on restart. For a future production-grade setup, media uploads should be moved to an object storage service such as AWS S3 or Cloudinary.
+- **Eco dyno sleeping** — Heroku Eco dynos sleep after 30 minutes of inactivity. The first request after sleep takes a few seconds while the dyno wakes up. This is acceptable for a monitoring system that is not expected to have 24/7 continuous traffic.
 
 ---
 
