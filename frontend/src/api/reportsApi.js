@@ -54,8 +54,10 @@ export async function getFieldReports(fieldId) {
   const response = await axiosInstance.get(`reports/?field=${fieldId}&ordering=-submitted_at`)
   return response.data
   /*
-    Coordinator-only use: fetch all reports for a specific field.
-    Uses the ?field= filter added to FieldReportViewSet filterset_fields.
+    Fetches reports for a specific field, filtered by the backend's role-scoped queryset:
+    - Coordinator: all reports for that field across all agents
+    - Field agent:  only their own reports for that field (backend filters by agent=user)
+    Used by CoordinatorFieldDetailPage and AgentFieldDetailPage.
     Response is paginated: { count, next, previous, results: [...] }
   */
 }

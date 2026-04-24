@@ -1,10 +1,11 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import FieldReport
 from .serializers import FieldReportSerializer
-from users.permissions import IsCoordinator, IsFieldAgent, IsAssignedAgent
+from users.permissions import IsFieldAgent
 
 
 class FieldReportViewSet(viewsets.ModelViewSet):
@@ -112,16 +113,29 @@ class FieldReportViewSet(viewsets.ModelViewSet):
             # POST /api/reports/ — only verified field agents
             return [IsAuthenticated(), IsFieldAgent()]
 
-        if self.action in ('update', 'partial_update', 'destroy'):
-            # PUT/PATCH/DELETE individual reports disabled for all roles via API.
-            # Reports are immutable once submitted — corrections go through admin.
-            # IsAssignedAgent is an object-level permission that checks
-            # obj.agent == request.user, so even if this gate were opened,
-            # an agent could only touch their own reports.
-            return [IsAuthenticated(), IsFieldAgent(), IsAssignedAgent()]
-
         # list() and retrieve() — both coordinators and field agents can read
         return [IsAuthenticated()]
+
+    def update(self, request, *args, **kwargs):
+        """PUT /api/reports/{id}/ — disabled. Reports are immutable once submitted."""
+        return Response(
+            {'detail': 'Monitoring reports cannot be edited once submitted.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        """PATCH /api/reports/{id}/ — disabled. Reports are immutable once submitted."""
+        return Response(
+            {'detail': 'Monitoring reports cannot be edited once submitted.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        """DELETE /api/reports/{id}/ — disabled. Reports are immutable once submitted."""
+        return Response(
+            {'detail': 'Monitoring reports cannot be deleted.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def perform_create(self, serializer):
         """

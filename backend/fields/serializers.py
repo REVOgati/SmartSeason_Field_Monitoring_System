@@ -107,10 +107,18 @@ class FieldSerializer(serializers.ModelSerializer):
             'realized_harvest_date',
             'realized_ready_date',
         ]
-        read_only_fields = ['id', 'coordinator', 'current_stage', 'field_status', 'created_at', 'updated_at']
-        # id — assigned by the database
-        # coordinator — set by the view, not by user input
-        # created_at, updated_at — timestamps managed by auto_now/auto_now_add
+        read_only_fields = [
+            'id', 'coordinator', 'current_stage', 'field_status', 'created_at', 'updated_at',
+            # Realized dates are written exclusively by field agents via the
+            # /realized-dates/ PATCH endpoint (AgentRealizedDatesSerializer).
+            # Marking them read-only here prevents coordinators from overwriting
+            # agent-recorded actual dates through the standard field update endpoint.
+            'realized_farm_prep_date',
+            'realized_planting_date',
+            'realized_emergence_date',
+            'realized_harvest_date',
+            'realized_ready_date',
+        ]
 
     def __init__(self, *args, **kwargs):
         """
