@@ -16,9 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
+
+
+def keepalive(request):
+    """GET /health/ — lightweight ping endpoint used by cronjob.org to prevent Heroku Eco dyno sleeping.
+    No authentication, no database queries — returns immediately."""
+    return JsonResponse({'status': 'ok'})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    path('health/', keepalive, name='keepalive'),
+    # Keepalive ping — register https://smartseason-api-8ebd1870ef49.herokuapp.com/health/
+    # on cronjob.org every 25 minutes to prevent the Eco dyno from sleeping.
+    # No auth required — the response is intentionally public and contains no sensitive data.
 
     path('api/auth/', include('users.urls')),
     # Mounts the users URL module at /api/auth/
