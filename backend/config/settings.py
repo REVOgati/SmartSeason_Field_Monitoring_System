@@ -31,18 +31,9 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    # Heroku: accept the app's .herokuapp.com domain and any custom domain.
-    # config() returns '' by default so the filter(None, ...) removes empty strings.
-    *filter(None, [
-        config('HEROKU_APP_NAME', default=''),
-        # If you set HEROKU_APP_NAME=smartseason-api, this becomes
-        # 'smartseason-api.herokuapp.com' via the line below.
-    ]),
+    '.herokuapp.com',   # covers all *.herokuapp.com subdomains including random-suffix names
+    *filter(None, [config('EXTRA_ALLOWED_HOST', default='')]),  # optional custom domain via env var
 ]
-# Append the full .herokuapp.com hostname when HEROKU_APP_NAME is present.
-_heroku_app = config('HEROKU_APP_NAME', default='')
-if _heroku_app:
-    ALLOWED_HOSTS.append(f'{_heroku_app}.herokuapp.com')
 
 # --- CORS ---
 # Allow the Vite dev server to reach the Django API (local development).
