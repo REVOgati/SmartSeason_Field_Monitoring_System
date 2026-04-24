@@ -6,6 +6,12 @@ import Navbar      from '../components/Navbar'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import { sharedStyles as s } from '../components/sharedStyles'
 import DateInput   from '../components/DateInput'
+import {
+  STAGE_LABELS,
+  STAGE_REALIZED_DATE_KEY,
+  STATUS_CONFIG,
+  computeFieldStatus,
+} from '../utils/fieldStatus'
 
 /*
   AgentFieldDetailPage — /agent/field/:id
@@ -28,6 +34,9 @@ const HEALTH_COLORS = {
   poor:      { bg: '#FFEBEE', color: '#C62828', border: '#FFCDD2' },
 }
 
+// Stage order used for the visual stepper
+const STAGE_ORDER = ['not_started', 'farm_prepped', 'planted', 'growing', 'ready', 'harvested']
+
 export default function AgentFieldDetailPage() {
   const { id } = useParams()
 
@@ -35,6 +44,12 @@ export default function AgentFieldDetailPage() {
   const [field,   setField]   = useState(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
+
+  // ── Stage form ─────────────────────────────────────────────────────────────
+  const [stageForm,    setStageForm]    = useState(null)
+  const [stageSaving,  setStageSaving]  = useState(false)
+  const [stageError,   setStageError]   = useState(null)
+  const [stageSuccess, setStageSuccess] = useState(false)
 
   // ── Realized dates form ───────────────────────────────────────────────────
   const [datesForm,    setDatesForm]    = useState(null)
@@ -56,6 +71,10 @@ export default function AgentFieldDetailPage() {
           getFieldReports(id),  // scoped to this agent via the backend
         ])
         setField(fieldData)
+        setStageForm({
+          current_stage:  fieldData.current_stage || 'not_started',
+          realized_date:  '',
+        })
         setDatesForm({
           realized_farm_prep_date:  fieldData.realized_farm_prep_date  ?? '',
           realized_planting_date:   fieldData.realized_planting_date   ?? '',
@@ -73,6 +92,34 @@ export default function AgentFieldDetailPage() {
     }
     loadAll()
   }, [id])
+
+  // ── Save current stage (+ corresponding realized date) ────────────────────
+  const handleSaveStage = useCallback(async (e) => {
+    e.preventDefault()
+    setStageSaving(true)
+    setStageError(null)
+    setStageSuccess(false)
+    const payload = { current_stage: stageForm.current_stage }
+    const realizedKey = STAGE_REALIZED_DATE_KEY[stageForm.current_stage]
+    if (realizedKey && stageForm.realized_date) {
+      payload[realizedKey] = stageForm.realized_date
+    }
+    try {
+      const updated = await patchRealizedDates(id, payload)
+      setField(updated)
+      setStageForm({ current_stage: updated.current_stage || 'not_started', realized_date: '' })
+      setStageSuccess(true)
+    } catch (err) {
+      const body = err?.response?.data
+      setStageError(
+        typeof body === 'string'
+          ? body
+          : Object.values(body || {}).flat().join(' ') || 'Could not save stage.'
+      )
+    } finally {
+      setStageSaving(false)
+    }
+  }, [id, stageForm])
 
   // ── Save realized dates ───────────────────────────────────────────────────
   const handleSaveDates = useCallback(async (e) => {
@@ -130,11 +177,13 @@ export default function AgentFieldDetailPage() {
     )
   }
 
-  const badgeStyle = {
+  const statusKey   = computeFieldStatus(field)
+  const statusCfg   = STATUS_CONFIG[statusKey]
+  const badgeStyle  = {
     ...styles.badge,
-    backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
-    color:           field.is_active ? '#2E7D32' : '#E65100',
-    borderColor:     field.is_active ? '#A5D6A7' : '#FFCC80',
+    backgroundColor: statusCfg.bg,
+    color:           statusCfg.color,
+    borderColor:     statusCfg.border,
   }
 
   return (
@@ -153,7 +202,7 @@ export default function AgentFieldDetailPage() {
             <h1 style={styles.pageTitle}>{field.name}</h1>
             <p style={styles.subtitle}>📍 {field.location}</p>
           </div>
-          <span style={badgeStyle}>{field.is_active ? 'Active' : 'Inactive'}</span>
+          <span style={badgeStyle}>{statusCfg.label}</span>
         </div>
 
         <div style={styles.twoCol}>
@@ -173,6 +222,94 @@ export default function AgentFieldDetailPage() {
                 <InfoRow label="Coordinator" value={field.coordinator?.full_name || '—'} />
               </div>
             </section>
+
+            {/* Field Stage */}
+            {stageForm && (
+            <section style={styles.card}>
+              <h2 style={styles.sectionTitle}>Field Stage</h2>
+              <p style={styles.sectionNote}>
+                Advance the stage when you complete a milestone and record the realized date of that stage.
+              </p>
+
+              {/* Visual stepper */}
+              <div style={styles.stageStepper}>
+                {STAGE_ORDER.map((stage, idx) => {
+                  const currentIdx = STAGE_ORDER.indexOf(field.current_stage || 'not_started')
+                  const isDone     = idx < currentIdx
+                  const isCurrent  = idx === currentIdx
+                  return (
+                    <>
+                      <div key={stage} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
+                        <div style={{
+                          width: '26px', height: '26px', borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.72rem', fontWeight: '700',
+                          backgroundColor: isDone ? '#2E7D32' : isCurrent ? '#81C784' : '#E8E8E8',
+                          color: isDone || isCurrent ? '#FFFFFF' : '#9E9E9E',
+                          border: isCurrent ? '2px solid #1B5E20' : '2px solid transparent',
+                          flexShrink: 0,
+                        }}>
+                          {isDone ? '✓' : idx + 1}
+                        </div>
+                        <span style={{
+                          fontSize: '0.64rem', textAlign: 'center', maxWidth: '58px', lineHeight: 1.2,
+                          color: isCurrent ? '#1B5E20' : isDone ? '#388E3C' : '#9E9E9E',
+                          fontWeight: isCurrent ? '700' : '400',
+                        }}>
+                          {STAGE_LABELS[stage]}
+                        </span>
+                      </div>
+                      {idx < STAGE_ORDER.length - 1 && (
+                        <div style={{
+                          flex: 1, height: '2px', marginBottom: '1.35rem', alignSelf: 'flex-start', marginTop: '12px',
+                          backgroundColor: idx < STAGE_ORDER.indexOf(field.current_stage || 'not_started') ? '#2E7D32' : '#E0E0E0',
+                        }} />
+                      )}
+                    </>
+                  )
+                })}
+              </div>
+
+              {stageError   && <div style={s.errorBanner}>{stageError}</div>}
+              {stageSuccess && <div style={styles.successBanner}>Stage updated!</div>}
+
+              <form onSubmit={handleSaveStage} style={{ marginTop: '1rem' }}>
+                <label style={s.label}>Set Stage</label>
+                <select
+                  style={{ ...s.input, marginBottom: '0.75rem' }}
+                  value={stageForm.current_stage}
+                  onChange={e => setStageForm(p => ({ ...p, current_stage: e.target.value, realized_date: '' }))}
+                >
+                  {STAGE_ORDER.map(stage => (
+                    <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
+                  ))}
+                </select>
+
+                {stageForm.current_stage !== 'not_started' && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <label style={s.label}>
+                      {STAGE_LABELS[stageForm.current_stage]} Date (realized)
+                    </label>
+                    <DateInput
+                      style={s.input}
+                      value={stageForm.realized_date}
+                      onChange={e => setStageForm(p => ({ ...p, realized_date: e.target.value }))}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="submit"
+                    style={{ ...s.submitBtn, opacity: stageSaving ? 0.65 : 1 }}
+                    disabled={stageSaving}
+                  >
+                    {stageSaving ? 'Saving…' : 'Save Stage'}
+                  </button>
+                </div>
+              </form>
+            </section>
+            )}
 
             {/* Crop Timeline — Expected vs Realized */}
             <section style={styles.card}>
@@ -197,7 +334,7 @@ export default function AgentFieldDetailPage() {
                     {[
                       { label: 'Farm Prep',  expKey: 'expected_farm_prep_date',  realKey: 'realized_farm_prep_date' },
                       { label: 'Planting',  expKey: 'expected_planting_date',  realKey: 'realized_planting_date' },
-                      { label: 'Emergence', expKey: 'expected_emergence_date', realKey: 'realized_emergence_date' },
+                      { label: 'Emergence (Growth Visibility)', expKey: 'expected_emergence_date', realKey: 'realized_emergence_date' },
                       { label: 'Ready',     expKey: 'expected_ready_date',     realKey: 'realized_ready_date' },
                       { label: 'Harvest',   expKey: 'expected_harvest_date',   realKey: 'realized_harvest_date' },
                     ].map(row => (
@@ -312,6 +449,8 @@ function ReportRow({ report }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = {
+  stageStepper:  { display: 'flex', alignItems: 'flex-start', gap: '0.25rem', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '0.25rem' },
+
   backLink:     { display: 'inline-block', marginBottom: '1.25rem', color: '#2E7D32', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', gap: '1rem' },
   headerLeft:   { display: 'flex', flexDirection: 'column', gap: '0.25rem' },

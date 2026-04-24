@@ -54,6 +54,13 @@ class FieldSerializer(serializers.ModelSerializer):
     # If read_only were False, DRF would expect a nested dict as input, which is messy.
 
     assigned_agent = UserPublicSerializer(read_only=True)
+
+    field_status = serializers.SerializerMethodField()
+    # Computed property exposed as a read-only serializer field.
+    # The value is derived from current_stage + expected dates — never stored in DB.
+
+    def get_field_status(self, obj):
+        return obj.field_status
     # Same pattern for the agent — embedded sub-object on read, set separately on write.
 
     assigned_agent_id = serializers.PrimaryKeyRelatedField(
@@ -83,6 +90,8 @@ class FieldSerializer(serializers.ModelSerializer):
             'assigned_agent',    # read: nested agent object
             'assigned_agent_id', # write: accepts an agent ID to assign
             'is_active',
+            'current_stage',
+            'field_status',
             'created_at',
             'updated_at',
             # Coordinator-set expected dates
@@ -98,7 +107,7 @@ class FieldSerializer(serializers.ModelSerializer):
             'realized_harvest_date',
             'realized_ready_date',
         ]
-        read_only_fields = ['id', 'coordinator', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'coordinator', 'current_stage', 'field_status', 'created_at', 'updated_at']
         # id — assigned by the database
         # coordinator — set by the view, not by user input
         # created_at, updated_at — timestamps managed by auto_now/auto_now_add
@@ -166,6 +175,7 @@ class AgentRealizedDatesSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Field
         fields = [
+            'current_stage',
             'realized_farm_prep_date',
             'realized_planting_date',
             'realized_emergence_date',

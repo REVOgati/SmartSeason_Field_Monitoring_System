@@ -6,6 +6,7 @@ import Navbar              from '../components/Navbar'
 import StatCard            from '../components/StatCard'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import { sharedStyles as s } from '../components/sharedStyles'
+import { computeFieldStatus, STATUS_CONFIG } from '../utils/fieldStatus'
 
 /*
   AgentDashboard.jsx — Main view for logged-in field agents.
@@ -190,6 +191,8 @@ function ReportCard({ report }) {
   Appears in the "My Assigned Fields" section above the reports list.
 */
 function AssignedFieldChip({ field }) {
+  const statusKey  = computeFieldStatus(field)
+  const statusCfg  = STATUS_CONFIG[statusKey]
   return (
     <div style={styles.fieldChip}>
       <div style={styles.chipTop}>
@@ -197,11 +200,11 @@ function AssignedFieldChip({ field }) {
         <span style={{
           fontSize: '0.72rem', fontWeight: '700',
           padding: '0.15rem 0.5rem', borderRadius: '20px',
-          backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
-          color:           field.is_active ? '#2E7D32' : '#E65100',
-          border:          field.is_active ? '1px solid #A5D6A7' : '1px solid #FFCC80',
+          backgroundColor: statusCfg.bg,
+          color:           statusCfg.color,
+          border:          `1px solid ${statusCfg.border}`,
         }}>
-          {field.is_active ? 'Active' : 'Inactive'}
+          {statusCfg.label}
         </span>
       </div>
       <p style={styles.chipName}>{field.name}</p>

@@ -7,6 +7,7 @@ import Navbar      from '../components/Navbar'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import { sharedStyles as s } from '../components/sharedStyles'
 import DateInput   from '../components/DateInput'
+import { computeFieldStatus, STATUS_CONFIG, STAGE_LABELS } from '../utils/fieldStatus'
 
 /*
   CoordinatorFieldDetailPage — /coordinator/field/:id
@@ -230,11 +231,13 @@ export default function CoordinatorFieldDetailPage() {
     )
   }
 
+  const statusKey  = computeFieldStatus(field)
+  const statusCfg  = STATUS_CONFIG[statusKey]
   const badgeStyle = {
     ...styles.badge,
-    backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
-    color:           field.is_active ? '#2E7D32' : '#E65100',
-    borderColor:     field.is_active ? '#A5D6A7' : '#FFCC80',
+    backgroundColor: statusCfg.bg,
+    color:           statusCfg.color,
+    borderColor:     statusCfg.border,
   }
 
   return (
@@ -253,7 +256,7 @@ export default function CoordinatorFieldDetailPage() {
             <h1 style={styles.pageTitle}>{field.name}</h1>
             <p style={styles.subtitle}>📍 {field.location}</p>
           </div>
-          <span style={badgeStyle}>{field.is_active ? 'Active' : 'Inactive'}</span>
+          <span style={badgeStyle}>{statusCfg.label}</span>
         </div>
 
         <div style={styles.twoCol}>
@@ -264,6 +267,13 @@ export default function CoordinatorFieldDetailPage() {
             {/* Field Details */}
             <section style={styles.card}>
               <h2 style={styles.sectionTitle}>Field Details</h2>
+              {/* Read-only current stage */}
+              <div style={styles.stageRow}>
+                <span style={styles.stageRowLabel}>Current Stage</span>
+                <span style={styles.stageRowValue}>
+                  {STAGE_LABELS[field.current_stage || 'not_started']}
+                </span>
+              </div>
               {detailsError && <div style={s.errorBanner}>{detailsError}</div>}
               {detailsSuccess && <div style={styles.successBanner}>Saved successfully!</div>}
               <form onSubmit={handleSaveDetails} style={s.form}>
@@ -346,7 +356,7 @@ export default function CoordinatorFieldDetailPage() {
                     />
                   </div>
                   <div>
-                    <label style={s.label}>Expected Emergence Date</label>
+                    <label style={s.label}>Expected Emergence (Growth Visibility) Date</label>
                     <DateInput
                       style={s.input}
                       value={datesForm.expected_emergence_date}
@@ -491,7 +501,7 @@ export default function CoordinatorFieldDetailPage() {
                   </thead>
                   <tbody>
                     <DateRow label="Planting"  expected={field.expected_planting_date}  realized={field.realized_planting_date} />
-                    <DateRow label="Emergence" expected={field.expected_emergence_date} realized={field.realized_emergence_date} />
+                    <DateRow label="Emergence (Growth Visibility)" expected={field.expected_emergence_date} realized={field.realized_emergence_date} />
                     <DateRow label="Ready"     expected={field.expected_ready_date}     realized={field.realized_ready_date} />
                     <DateRow label="Harvest"   expected={field.expected_harvest_date}   realized={field.realized_harvest_date} />
                   </tbody>
@@ -589,6 +599,9 @@ const styles = {
   card:         { backgroundColor: '#FFFFFF', border: '1px solid #C8E6C9', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 10px rgba(27, 94, 32, 0.07)' },
   sectionTitle: { margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: '700', color: '#1B5E20', display: 'flex', alignItems: 'center', gap: '0.5rem' },
   sectionNote:  { margin: '-0.5rem 0 1rem', fontSize: '0.83rem', color: '#4A6741' },
+  stageRow:      { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', marginBottom: '0.75rem', borderBottom: '1px solid #F1F8E9' },
+  stageRowLabel: { fontSize: '0.82rem', fontWeight: '700', color: '#4A6741', minWidth: '110px' },
+  stageRowValue: { fontSize: '0.88rem', color: '#1B2E1B', fontWeight: '600' },
   successBanner:{ backgroundColor: '#E8F5E9', color: '#1B5E20', border: '1px solid #A5D6A7', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1rem', fontSize: '0.88rem', fontWeight: '600' },
   checkboxLabel:{ display: 'flex', alignItems: 'center', fontSize: '0.9rem', color: '#1B2E1B', cursor: 'pointer', marginTop: '0.25rem' },
 

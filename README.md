@@ -24,12 +24,13 @@ A coordinator manages a portfolio of farm fields and leads a team of field agent
 
 **What a coordinator can do:**
 - Create, edit, and deactivate farm fields
-- Set expected crop milestone dates for each field (Planting, Emergence, Ready for Harvest, Harvest)
+- Set expected crop milestone dates for each field (Farm Preparation, Planting, Emergence, Ready for Market, Harvest)
 - Browse a pool of approved field agents and add them to their team
 - Assign agents from their team to specific fields
 - Drop an agent from their team (the agent's historical work is never deleted)
 - View all monitoring reports submitted for their fields
 - See the actual dates that agents recorded for each crop milestone
+- View the current stage and computed health status of each field
 
 ### Field Agent (On-the-Ground Monitor)
 A field agent is physically present at the assigned farms. They report back regularly on what they are observing.
@@ -38,6 +39,7 @@ A field agent is physically present at the assigned farms. They report back regu
 - View the fields they have been assigned to
 - Submit periodic monitoring reports (crop health, soil moisture, pest observations, notes, photo)
 - Record the actual dates when crop milestones happened (e.g., the date the crop actually emerged)
+- Advance the field's stage as each milestone is completed, recording the realized date at the same time
 
 ---
 
@@ -53,7 +55,13 @@ Each coordinator has a completely private view of the system. Coordinator A cann
 Approved field agents start in an unassigned pool visible to all coordinators. A coordinator picks the agents they want and adds them to their own team. From that point on, only that coordinator can assign those agents to fields. An agent belongs to at most one coordinator at a time.
 
 ### Crop Timeline Tracking
-Every field has a timeline of four crop phases: **Planting → Emergence → Ready → Harvest**. The coordinator records the dates they expect each phase to happen. The assigned agent records the dates each phase actually happened. Both sets of dates are visible side by side so progress and delays are immediately clear.
+Every field has a timeline of **five crop phases**: **Farm Preparation → Planting → Emergence → Ready → Harvest**. The coordinator records the dates they expect each phase to happen. The assigned agent records the dates each phase actually happened. Both sets of dates are visible side by side so progress and delays are immediately clear.
+
+### Field Stage Tracking
+Every field has a `current_stage` that reflects where it is in its lifecycle. There are six possible stages: **Not Started → Farm Prepped → Planted → Growing → Ready → Harvested**. The field agent advances the stage directly from the field detail page using a visual step-by-step indicator. Advancing a stage and recording its realized date are done in a single action.
+
+### Field Status
+Every field automatically receives a computed status based on its current stage and how close it is to its next deadline. This status is displayed as a colour-coded badge throughout the system. See the [Field Status Logic](#field-status-logic) section below for a full explanation.
 
 ### Field Monitoring Reports
 Field agents submit structured reports for each of their assigned fields. Each report captures:
@@ -73,17 +81,17 @@ Coordinators can browse, filter, and review all reports across their fields from
 ### Coordinator Flow
 1. Register an account → wait for superuser approval → log in.
 2. Create farm fields with name, location, crop type, and size.
-3. Set expected crop milestone dates for each field.
+3. Set expected crop milestone dates for each field (Farm Prep through Harvest).
 4. Browse the agent pool and add the agents needed to their team.
 5. Assign team agents to specific fields.
-6. View the field detail page to monitor crop timeline progress and read submitted reports.
+6. View the field detail page to monitor the current stage, field status, crop timeline progress, and submitted reports.
 7. Drop agents who are no longer part of the operation — all their historical reports are preserved.
 
 ### Field Agent Flow
 1. Register an account → wait for superuser approval → log in.
 2. See the fields that have been assigned by their coordinator on the dashboard.
-3. Open a field's detail page to review the expected crop dates set by the coordinator.
-4. Record the actual dates as each crop milestone happens.
+3. Open a field’s detail page to review the expected crop dates set by the coordinator.
+4. As each crop milestone is completed, advance the stage and record the realized date.
 5. Submit regular monitoring reports capturing observations from the field.
 
 ---
@@ -135,13 +143,14 @@ SmartSeason_Field_Monitoring_System/
 ├── backend/              # Django project — see backend/README.md
 │   ├── config/           # Settings and root URL configuration
 │   ├── users/            # User model, auth, roles, team management
-│   ├── fields/           # Farm field records, crop timeline
+│   ├── fields/           # Farm field records, crop timeline, stage, status
 │   ├── monitoring/       # Field monitoring reports
 │   └── requirements.txt
 │
 ├── frontend/             # React + Vite SPA — see frontend/README.md
 │   └── src/
 │       ├── api/          # All backend API calls
+│       ├── utils/        # fieldStatus.js — stage labels, status config, compute function
 │       ├── context/      # Auth state (global)
 │       ├── routes/       # Protected route guards
 │       ├── components/   # Reusable UI building blocks
@@ -197,10 +206,66 @@ All planned features from the project definition are complete:
 | Coordinator isolation (private field/agent/report views) | ✅ |
 | Agent pool and team management | ✅ |
 | Farm field CRUD | ✅ |
-| Crop timeline (expected + realized dates, 4 phases) | ✅ |
+| Crop timeline (expected + realized dates, 5 phases) | ✅ |
+| Field stage tracking (6 stages, agent-advanced) | ✅ |
+| Field status (computed from stage + schedule) | ✅ |
 | Field monitoring report submission | ✅ |
 | Coordinator reports view with filtering | ✅ |
 | Coordinator field detail page | ✅ |
 | Agent field detail page | ✅ |
 | Role-based route protection | ✅ |
 | Django Admin with full management UI | ✅ |
+
+---
+
+## Field Status Logic
+
+Every field in SmartSeason has a **status** that is computed automatically — it is never entered manually and never stored in the database. Instead, it is recalculated on every request based on two pieces of data already on the field: the **current stage** and the **next expected date** for that stage.
+
+The goal is to give coordinators and agents an at-a-glance signal about whether a field is progressing on schedule or falling behind.
+
+### The Five Statuses
+
+| Status | Badge Colour | Meaning |
+|---|---|---|
+| **Inactive** | Grey | The field has not been started yet — no work has begun |
+| **Active** | Green | Work is in progress and the next milestone is on schedule |
+| **At Risk** | Amber | The next milestone deadline has passed by 1 to 7 days |
+| **Danger** | Red | The next milestone deadline has passed by more than 7 days |
+| **Completed** | Blue | The field has been fully harvested |
+
+### How It Is Computed
+
+The logic works in three steps:
+
+**Step 1 — Check the stage endpoints.**
+If the stage is `not_started`, the field has not been touched yet — status is `inactive`.
+If the stage is `harvested`, the full cycle is done — status is `completed`.
+
+**Step 2 — Look up the next deadline.**
+For every active stage, there is a "next" expected date that acts as the upcoming deadline:
+
+| Current Stage | Next Deadline Being Watched |
+|---|---|
+| Farm Prepped | Expected Planting Date |
+| Planted | Expected Emergence Date |
+| Growing | Expected Ready Date |
+| Ready | Expected Harvest Date |
+
+If the coordinator has not set that expected date yet, there is no deadline to be late against — status defaults to `active`.
+
+**Step 3 — Compare today against the deadline.**
+```
+diff = today − next expected date  (in days)
+
+diff ≤ 0  →  on schedule or future  →  active
+diff 1–7  →  slightly overdue       →  at_risk
+diff > 7  →  significantly overdue  →  danger
+```
+
+### Why This Approach
+
+- **No extra storage** — the status is derived, not persisted. It is always fresh and impossible to go stale.
+- **Role separation** — only agents can change the stage; only coordinators can change expected dates. The status is the product of both roles' inputs combined.
+- **Single source of truth** — the computation function lives in one place (`backend/fields/models.py` as a `@property` and mirrored in `frontend/src/utils/fieldStatus.js`). Every page that shows a badge calls the same function.
+- **Graceful defaults** — missing dates never cause errors; the logic defaults to `active` so a field with no deadlines set is never shown as at risk.

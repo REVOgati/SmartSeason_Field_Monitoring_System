@@ -7,6 +7,7 @@ import StatCard    from '../components/StatCard'
 import PageLayout, { contentArea } from '../components/PageLayout'
 import FormModal   from '../components/FormModal'
 import { sharedStyles as s } from '../components/sharedStyles'
+import { computeFieldStatus, STATUS_CONFIG } from '../utils/fieldStatus'
 
 /*
   CoordinatorDashboard.jsx â€” The main view for logged-in coordinators.
@@ -443,11 +444,13 @@ export default function CoordinatorDashboard() {
     Drop Agent button   — shown when an agent is assigned
 */
 function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }) {
+  const statusKey  = computeFieldStatus(field)
+  const statusCfg  = STATUS_CONFIG[statusKey]
   const badgeStyle = {
     ...styles.badge,
-    backgroundColor: field.is_active ? '#E8F5E9' : '#FFF3E0',
-    color:           field.is_active ? '#2E7D32' : '#E65100',
-    borderColor:     field.is_active ? '#A5D6A7' : '#FFCC80',
+    backgroundColor: statusCfg.bg,
+    color:           statusCfg.color,
+    borderColor:     statusCfg.border,
   }
 
   const cardStyle = styles.card
@@ -457,7 +460,12 @@ function FieldCard({ field, onDelete, isDeleting, onAssign, onDrop, isDropping }
     <div style={cardStyle}>
       <div style={styles.cardTop}>
         <span style={styles.cropChip}>{field.crop_type}</span>
-        <span style={badgeStyle}>{field.is_active ? 'Active' : 'Inactive'}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+          <span style={badgeStyle}>{statusCfg.label}</span>
+          {!field.is_active && (
+            <span style={styles.archivedLabel}>Archived</span>
+          )}
+        </div>
       </div>
 
       <h3 style={styles.fieldName}>{field.name}</h3>
@@ -515,6 +523,7 @@ const styles = {
   cardTop:      { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' },
   cropChip:     { fontSize: '0.78rem', fontWeight: '700', color: '#2E7D32', backgroundColor: '#E8F5E9', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #A5D6A7' },
   badge:        { fontSize: '0.75rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '30px', border: '1px solid transparent' },
+  archivedLabel:{ fontSize: '0.65rem', fontWeight: '600', color: '#9E9E9E' },
   fieldName:    { margin: '0 0 0.75rem', fontSize: '1.05rem', fontWeight: '700', color: '#1B2E1B' },
   metaRow:      { margin: '0.3rem 0', fontSize: '0.85rem', color: '#4A6741' },
   cardFooter:      { marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' },

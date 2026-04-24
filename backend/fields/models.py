@@ -1,5 +1,17 @@
+import datetime
+
 from django.db import models
 from django.conf import settings
+
+
+STAGE_CHOICES = [
+    ('not_started', 'Not Started'),
+    ('farm_prepped', 'Farm Prepped'),
+    ('planted',     'Planted'),
+    ('growing',     'Growing'),
+    ('ready',       'Ready'),
+    ('harvested',   'Harvested'),
+]
 
 
 class Field(models.Model):
@@ -80,6 +92,15 @@ class Field(models.Model):
         # We deactivate rather than delete to preserve historical monitoring data.
     )
 
+    current_stage = models.CharField(
+        max_length=20,
+        choices=STAGE_CHOICES,
+        default='not_started',
+        # Tracks which lifecycle stage this field is currently at.
+        # Advanced by the field agent when they record a milestone.
+        # Read-only for coordinators (they observe it, not control it).
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         # auto_now_add: set once when the record is first created. Never changes again.
@@ -147,3 +168,44 @@ class Field(models.Model):
     def __str__(self):
         agent_name = self.assigned_agent.full_name if self.assigned_agent else 'Unassigned'
         return f"{self.name} | {self.crop_type} | Agent: {agent_name}"
+
+    # -------------------------------------------------------------------------
+    # Computed field status — derived from current_stage + expected dates
+    # -------------------------------------------------------------------------
+    @property
+    def field_status(self):
+        """
+        Returns one of: 'inactive', 'active', 'at_risk', 'danger', 'completed'.
+
+        Rules:
+        - not_started           → inactive
+        - harvested             → completed
+        - any other stage + no next expected date set → active
+        - overdue by >7 days    → danger
+        - overdue by 1-7 days   → at_risk
+        - on schedule or future → active
+        """
+        STAGE_NEXT_EXPECTED = {
+            'not_started':  'expected_farm_prep_date',
+            'farm_prepped': 'expected_planting_date',
+            'planted':      'expected_emergence_date',
+            'growing':      'expected_ready_date',
+            'ready':        'expected_harvest_date',
+        }
+        if self.current_stage == 'not_started':
+            return 'inactive'
+        if self.current_stage == 'harvested':
+            return 'completed'
+        next_date_field = STAGE_NEXT_EXPECTED.get(self.current_stage)
+        if not next_date_field:
+            return 'active'
+        expected_date = getattr(self, next_date_field)
+        if not expected_date:
+            return 'active'
+        today = datetime.date.today()
+        diff = (today - expected_date).days
+        if diff > 7:
+            return 'danger'
+        if diff >= 1:
+            return 'at_risk'
+        return 'active'

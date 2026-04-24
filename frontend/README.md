@@ -30,6 +30,9 @@ frontend/src/
 │   ├── agentsApi.js            # getAgentPool, getMyTeam, assignAgent, dropAgent
 │   └── reportsApi.js           # getFieldReports, submitReport
 │
+├── utils/
+│   └── fieldStatus.js          # Stage labels, status config, computeFieldStatus()
+│
 ├── context/
 │   └── AuthContext.jsx         # Global auth state (user, tokens, login, logout)
 │
@@ -50,9 +53,11 @@ frontend/src/
     ├── CoordinatorDashboard.jsx        # Coordinator home: field grid + agent panels
     ├── CoordinatorFieldDetailPage.jsx  # Single field: edit details, expected dates,
     │                                   # manage agent, view realized dates + reports
+    │                                   # Read-only current stage display
     ├── CoordinatorReportsPage.jsx      # All reports for coordinator's fields (filterable)
     ├── AgentDashboard.jsx              # Agent home: assigned fields + recent reports
-    ├── AgentFieldDetailPage.jsx        # Single field: info + crop timeline + my reports
+    ├── AgentFieldDetailPage.jsx        # Single field: info + stage stepper +
+    │                                   # crop timeline + my reports
     └── SubmitReportPage.jsx            # Report submission form for agents
 ```
 
@@ -106,8 +111,70 @@ deleteField(id)                      // DELETE /api/fields/{id}/
 getFieldById(id)                     // GET /api/fields/{id}/           (coordinator)
 getFieldDetail(id)                   // GET /api/fields/{id}/agent-detail/  (agent)
 patchRealizedDates(id, data)         // PATCH /api/fields/{id}/realized-dates/
+                                     // Accepts realized dates AND/OR current_stage
 getMyAssignedFields()                // GET /api/fields/my-assigned/
 ```
+
+---
+
+## Field Stage and Field Status
+
+### `src/utils/fieldStatus.js`
+A centralised utility module that owns all stage/status constants and the status computation function. Every page that needs to display a stage label or a status badge imports from here — there is no duplication of these values across the codebase.
+
+**Exports:**
+
+| Export | Type | Purpose |
+|---|---|---|
+| `STAGE_LABELS` | object | Maps each stage key to its human-readable label |
+| `STAGE_REALIZED_DATE_KEY` | object | Maps each stage to the realized date field it records |
+| `STATUS_CONFIG` | object | Maps each status key to `{ label, bg, color, border }` for badge rendering |
+| `computeFieldStatus(field)` | function | Derives a status string from a field object |
+
+**Stage order and labels:**
+
+| Stage Key | Display Label |
+|---|---|
+| `not_started` | Not Started |
+| `farm_prepped` | Farm Prepped |
+| `planted` | Planted |
+| `growing` | Growing |
+| `ready` | Ready |
+| `harvested` | Harvested |
+
+**Status values and badge colours:**
+
+| Status | Background | Text colour | Meaning |
+|---|---|---|---|
+| `inactive` | Light grey | Grey | Stage is `not_started` |
+| `active` | Light green | Dark green | On schedule or no deadline set |
+| `at_risk` | Light amber | Deep orange | 1–7 days past the next expected date |
+| `danger` | Light red | Dark red | More than 7 days past the next expected date |
+| `completed` | Light blue | Dark blue | Stage is `harvested` |
+
+### Page Integration
+
+**`AgentFieldDetailPage.jsx`**
+- Imports `STAGE_LABELS`, `STAGE_REALIZED_DATE_KEY`, `STATUS_CONFIG`, `computeFieldStatus`.
+- Displays a **6-step visual stepper** showing the field's progress through all stages. Completed steps are filled green with a tick; the current step is highlighted with a border; future steps are grey.
+- A `<select>` lets the agent choose the stage to advance to.
+- A `DateInput` appears (conditionally, hidden for `not_started`) for the agent to record the realized date of that stage.
+- On save, the payload is `{ current_stage, [realizedDateKey]: date }` sent to `PATCH /api/fields/{id}/realized-dates/`. This means advancing the stage and recording its date is a single atomic API call.
+- The header badge is replaced by a computed status badge.
+
+**`CoordinatorFieldDetailPage.jsx`**
+- Imports `computeFieldStatus`, `STATUS_CONFIG`, `STAGE_LABELS`.
+- Header badge replaced with computed status badge.
+- Field Details panel displays a read-only **Current Stage** row showing the human-readable stage label.
+
+**`CoordinatorDashboard.jsx`**
+- Imports `computeFieldStatus`, `STATUS_CONFIG`.
+- Each field card's status badge is replaced by the computed status badge.
+- When a field is archived (`is_active = false`), a secondary small **Archived** label is shown below the status badge so the archive state is not lost.
+
+**`AgentDashboard.jsx`**
+- Imports `computeFieldStatus`, `STATUS_CONFIG`.
+- Field chips in the assigned fields section display the computed status badge instead of the old `is_active`-based badge.
 
 ---
 

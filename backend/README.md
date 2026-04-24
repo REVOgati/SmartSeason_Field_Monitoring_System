@@ -36,7 +36,8 @@ backend/
 │   ├── urls.py           # /api/auth/ routes
 │   └── agent_urls.py     # /api/agents/ routes
 ├── fields/               # Farm field records and crop timeline
-│   ├── models.py         # Field model with 8 crop timeline date fields
+│   ├── models.py         # Field model with 10 crop timeline date fields,
+│   │                     # current_stage CharField, and field_status property
 │   ├── serializers.py    # FieldSerializer + AgentRealizedDatesSerializer
 │   ├── views.py          # FieldViewSet with agent-detail and realized-dates actions
 │   └── urls.py
@@ -68,10 +69,64 @@ Manages farm field records.
 
 - Full CRUD restricted to coordinators; each coordinator sees only their own fields.
 - Object-level permission (`IsFieldOwner`) prevents direct URL access to another coordinator's fields.
-- **Crop timeline** — 8 `DateField` columns on the Field model tracking four phases (Planting, Emergence, Ready, Harvest) with an expected date (set by coordinator) and a realized date (set by the assigned agent).
-- Custom actions:
-  - `GET /api/fields/{id}/agent-detail/` — agent-scoped field view (403 if not assigned)
-  - `PATCH /api/fields/{id}/realized-dates/` — agent updates their four realized dates
+
+#### Crop Timeline — Date Fields
+The `Field` model carries **10 `DateField` columns** tracking five crop lifecycle phases. Each phase has an expected date (set by the coordinator) and a realized date (recorded by the assigned agent):
+
+| Phase | Expected Date Field | Realized Date Field |
+|---|---|---|
+| Farm Preparation | `expected_farm_prep_date` | `realized_farm_prep_date` |
+| Planting | `expected_planting_date` | `realized_planting_date` |
+| Emergence (Growth Visibility) | `expected_emergence_date` | `realized_emergence_date` |
+| Ready for Market | `expected_ready_date` | `realized_ready_date` |
+| Harvest | `expected_harvest_date` | `realized_harvest_date` |
+
+All date fields are `null=True, blank=True, default=None` so that they can be filled in incrementally over the field's lifecycle.
+
+#### Field Stage — `current_stage`
+The `Field` model has a `current_stage` `CharField` that tracks which lifecycle stage the field is currently at. It uses the following fixed choices:
+
+```python
+STAGE_CHOICES = [
+    ('not_started', 'Not Started'),
+    ('farm_prepped', 'Farm Prepped'),
+    ('planted',     'Planted'),
+    ('growing',     'Growing'),
+    ('ready',       'Ready'),
+    ('harvested',   'Harvested'),
+]
+```
+
+- **Default** is `not_started`.
+- **Advanced by the field agent** via the `PATCH /api/fields/{id}/realized-dates/` endpoint — agents include `current_stage` in the same payload as realized date fields.
+- **Read-only for coordinators** — `current_stage` is in `FieldSerializer.read_only_fields`; coordinators observe it but cannot overwrite it.
+
+#### Field Status — `field_status` property
+`field_status` is a computed `@property` on the `Field` model — it is never stored in the database. It is recalculated on every read and exposed by `FieldSerializer` as a `SerializerMethodField`.
+
+The property returns one of five string values: `inactive`, `active`, `at_risk`, `danger`, `completed`.
+
+Computation logic:
+1. If `current_stage == 'not_started'` → `inactive`
+2. If `current_stage == 'harvested'` → `completed`
+3. Otherwise, look up the **next expected date** for the current stage:
+   - `farm_prepped` → checks `expected_planting_date`
+   - `planted` → checks `expected_emergence_date`
+   - `growing` → checks `expected_ready_date`
+   - `ready` → checks `expected_harvest_date`
+4. If that expected date is not set → `active`
+5. Calculate `diff = today − expected_date` in days:
+   - `diff > 7` → `danger`
+   - `diff >= 1` → `at_risk`
+   - `diff <= 0` (on schedule or future) → `active`
+
+#### Serializer Changes
+- **`FieldSerializer`** — adds `field_status = SerializerMethodField()` and exposes both `current_stage` and `field_status` in `Meta.fields`. Both are listed in `read_only_fields` so coordinators cannot alter them through the main PATCH endpoint.
+- **`AgentRealizedDatesSerializer`** — adds `current_stage` as a writable field, allowing agents to advance the stage in the same request as recording a realized date.
+
+Custom actions:
+- `GET /api/fields/{id}/agent-detail/` — agent-scoped field view (403 if not assigned)
+- `PATCH /api/fields/{id}/realized-dates/` — agent updates realized dates **and/or** advances `current_stage`
 
 ### `monitoring`
 Stores periodic field reports submitted by agents.
@@ -114,7 +169,7 @@ Stores periodic field reports submitted by agents.
 | DELETE | `/api/fields/{id}/` | Delete field | Coordinator |
 | GET | `/api/fields/my-assigned/` | Agent's assigned fields | Field Agent |
 | GET | `/api/fields/{id}/agent-detail/` | Full field detail for assigned agent | Field Agent |
-| PATCH | `/api/fields/{id}/realized-dates/` | Save realized crop dates | Field Agent |
+| PATCH | `/api/fields/{id}/realized-dates/` | Save realized crop dates and/or advance stage | Field Agent |
 
 ### Reports — `/api/reports/`
 
