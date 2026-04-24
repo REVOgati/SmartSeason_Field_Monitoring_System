@@ -27,7 +27,10 @@ import { jwtDecode } from 'jwt-decode'
 */
 
 const axiosInstance = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/',
+  // In production (Vercel) set VITE_API_URL to the Heroku backend URL,
+  // e.g. https://smartseason-api.herokuapp.com/api/
+  // In local development the fallback keeps things working without any .env file.
+  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/',
   /*
     baseURL: every request made through axiosInstance gets this prefix.
     axiosInstance.get('/fields/')  →  GET http://127.0.0.1:8000/api/fields/

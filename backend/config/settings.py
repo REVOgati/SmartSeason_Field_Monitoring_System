@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,13 +28,30 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    # Heroku: accept the app's .herokuapp.com domain and any custom domain.
+    # config() returns '' by default so the filter(None, ...) removes empty strings.
+    *filter(None, [
+        config('HEROKU_APP_NAME', default=''),
+        # If you set HEROKU_APP_NAME=smartseason-api, this becomes
+        # 'smartseason-api.herokuapp.com' via the line below.
+    ]),
+]
+# Append the full .herokuapp.com hostname when HEROKU_APP_NAME is present.
+_heroku_app = config('HEROKU_APP_NAME', default='')
+if _heroku_app:
+    ALLOWED_HOSTS.append(f'{_heroku_app}.herokuapp.com')
 
 # --- CORS ---
-# Allow the Vite dev server to reach the Django API.
+# Allow the Vite dev server to reach the Django API (local development).
+# In production, FRONTEND_URL is the deployed Vercel URL.
+_frontend_url = config('FRONTEND_URL', default='')
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    *filter(None, [_frontend_url]),
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -63,6 +82,9 @@ AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    # WhiteNoise must be directly after SecurityMiddleware so it can serve
+    # compressed static files before any other middleware runs.
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -94,17 +116,37 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+#
+# In production (Heroku) DATABASE_URL is set as an environment variable and
+# dj_database_url parses the full connection string into Django's expected dict.
+# Locally (dev) DATABASE_URL is not set, so we fall back to the individual
+# DB_* variables from the .env file — keeping local development unchanged.
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT', cast=int),
+_DATABASE_URL = config('DATABASE_URL', default='')
+
+if _DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            _DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+            # conn_max_age=600: keep each DB connection open for 10 minutes
+            # (persistent connections) to avoid the overhead of reconnecting
+            # on every request — especially important on Heroku eco dynos.
+            # ssl_require=True: Supabase requires SSL on all connections.
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST': config('DB_HOST'),
+            'PORT': config('DB_PORT', cast=int),
+        }
+    }
 
 
 # Password validation
@@ -143,12 +185,18 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# STATIC_ROOT: the directory collectstatic writes all static files into.
+# WhiteNoise then serves files from this directory in production.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise storage: compresses static files (gzip + brotli) and appends
+# a content hash to filenames so browsers cache them aggressively.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-import os
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
