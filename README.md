@@ -302,7 +302,7 @@ Every field in SmartSeason has a **status** that is computed automatically — i
 
 The goal is to give coordinators and agents an at-a-glance signal about whether a field is progressing on schedule or falling behind.
 
-### The Five Statuses
+### The Five Statuses:
 
 | Status | Badge Colour | Meaning |
 |---|---|---|
